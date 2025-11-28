@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+set -e
+
+RALPH_DIR=".claude/ralph"
+PROMPT_FILE="$RALPH_DIR/prompt.md"
+CONTROL_FILE="$RALPH_DIR/loop-control"
+UUID_FILE="$RALPH_DIR/uuid"
+
+if [ ! -f "$PROMPT_FILE" ]; then
+    echo "Error: $PROMPT_FILE not found"
+    echo "Run the spec-builder first to generate the prompt file."
+    exit 1
+fi
+
+touch "$CONTROL_FILE"
+START_TIME=$(stat -f %m "$CONTROL_FILE" 2>/dev/null || stat -c %Y "$CONTROL_FILE")
+
+while true; do
+    CURRENT_TIME=$(stat -f %m "$CONTROL_FILE" 2>/dev/null || stat -c %Y "$CONTROL_FILE")
+    if [ "$CURRENT_TIME" != "$START_TIME" ]; then
+        echo "Loop stop requested. Exiting."
+        exit 0
+    fi
+
+    if [ -f "$UUID_FILE" ]; then
+        UUID=$(cat "$UUID_FILE")
+        echo "Resuming session: $UUID"
+        RALPH_WIGGUM_LOOP=true claude --fork-session --resume="$UUID" "Go" || true
+    else
+        UUID=$(uuidgen | tr '[:upper:]' '[:lower:]')
+        echo "$UUID" > "$UUID_FILE"
+        echo "Starting new session: $UUID"
+        cat "$PROMPT_FILE" | RALPH_WIGGUM_LOOP=true claude --session-id="$UUID" || true
+    fi
+
+    echo ""
+    echo "Session ended. Checking if loop should continue..."
+done

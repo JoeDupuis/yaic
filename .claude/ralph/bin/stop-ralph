@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+CONTROL_FILE=".claude/ralph/loop-control"
+
+if [ ! -f "$CONTROL_FILE" ]; then
+    echo "No running loop found."
+    exit 1
+fi
+
+touch "$CONTROL_FILE"
+echo "Stop signal sent. Loop will exit after current session."
