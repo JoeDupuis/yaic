@@ -22,6 +22,8 @@ while true; do
         exit 0
     fi
 
+    PROMPT_CONTENT=$(cat "$PROMPT_FILE")
+
     if [ -f "$UUID_FILE" ]; then
         UUID=$(cat "$UUID_FILE")
         echo "Resuming session: $UUID"
@@ -30,7 +32,7 @@ while true; do
         UUID=$(uuidgen | tr '[:upper:]' '[:lower:]')
         echo "$UUID" > "$UUID_FILE"
         echo "Starting new session: $UUID"
-        cat "$PROMPT_FILE" | RALPH_WIGGUM_LOOP=true claude --session-id="$UUID" || true
+        RALPH_WIGGUM_LOOP=true claude --session-id="$UUID" "$PROMPT_CONTENT" || true
     fi
 
     echo ""
