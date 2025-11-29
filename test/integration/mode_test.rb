@@ -76,12 +76,11 @@ class ModeIntegrationTest < Minitest::Test
 
   def test_set_channel_mode_as_op
     client = create_connected_client(@test_nick)
-    socket = client.instance_variable_get(:@socket)
 
-    become_oper(client, socket)
+    become_oper(client)
     client.join(@test_channel)
 
-    socket.write("SAMODE #{@test_channel} +o #{@test_nick}")
+    client.raw("SAMODE #{@test_channel} +o #{@test_nick}")
     sleep 0.5
 
     mode_confirmed = false
@@ -100,12 +99,11 @@ class ModeIntegrationTest < Minitest::Test
 
   def test_give_op_to_user
     client1 = create_connected_client(@test_nick)
-    socket1 = client1.instance_variable_get(:@socket)
 
-    become_oper(client1, socket1)
+    become_oper(client1)
     client1.join(@test_channel)
 
-    socket1.write("SAMODE #{@test_channel} +o #{@test_nick}")
+    client1.raw("SAMODE #{@test_channel} +o #{@test_nick}")
     sleep 0.5
 
     client2 = create_connected_client(@test_nick2)
@@ -127,12 +125,11 @@ class ModeIntegrationTest < Minitest::Test
 
   def test_set_channel_key
     client = create_connected_client(@test_nick)
-    socket = client.instance_variable_get(:@socket)
 
-    become_oper(client, socket)
+    become_oper(client)
     client.join(@test_channel)
 
-    socket.write("SAMODE #{@test_channel} +o #{@test_nick}")
+    client.raw("SAMODE #{@test_channel} +o #{@test_nick}")
     sleep 0.5
 
     mode_confirmed = false
@@ -185,10 +182,10 @@ class ModeIntegrationTest < Minitest::Test
     client
   end
 
-  def become_oper(client, socket)
+  def become_oper(client)
     oper_success = false
     client.on(:raw) { |event| oper_success = true if event.message&.command == "381" }
-    socket.write("OPER testoper testpass")
+    client.raw("OPER testoper testpass")
     deadline = Time.now + 5
     until oper_success || Time.now > deadline
       sleep 0.05

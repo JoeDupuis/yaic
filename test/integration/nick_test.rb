@@ -30,9 +30,8 @@ class NickIntegrationTest < Minitest::Test
     error_received = false
     client2.on(:error) { |event| error_received = true if event.numeric == 433 }
 
-    socket = client2.instance_variable_get(:@socket)
     msg = Yaic::Message.new(command: "NICK", params: [@test_nick])
-    socket.write(msg.to_s)
+    client2.raw(msg.to_s)
     sleep 0.5
 
     assert error_received
@@ -48,9 +47,8 @@ class NickIntegrationTest < Minitest::Test
     error_received = false
     client.on(:error) { |event| error_received = true if event.numeric == 432 }
 
-    socket = client.instance_variable_get(:@socket)
     msg = Yaic::Message.new(command: "NICK", params: ["#invalid"])
-    socket.write(msg.to_s)
+    client.raw(msg.to_s)
     sleep 0.5
 
     assert error_received

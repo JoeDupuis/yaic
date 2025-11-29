@@ -31,14 +31,13 @@ class NamesIntegrationTest < Minitest::Test
 
   def test_names_with_prefixes
     client1 = create_connected_client(@test_nick)
-    socket1 = client1.instance_variable_get(:@socket)
 
-    become_oper(socket1)
+    become_oper(client1)
 
     client1.join(@test_channel)
 
-    socket1.write("SAMODE #{@test_channel} +o #{@test_nick}")
-    wait_for_mode(socket1, @test_channel)
+    client1.raw("SAMODE #{@test_channel} +o #{@test_nick}")
+    wait_for_mode(client1, @test_channel)
 
     client2 = create_connected_client(@test_nick2)
     client2.join(@test_channel)
@@ -60,14 +59,13 @@ class NamesIntegrationTest < Minitest::Test
 
   def test_names_at_join
     client1 = create_connected_client(@test_nick)
-    socket1 = client1.instance_variable_get(:@socket)
 
-    become_oper(socket1)
+    become_oper(client1)
 
     client1.join(@test_channel)
 
-    socket1.write("SAMODE #{@test_channel} +o #{@test_nick}")
-    wait_for_mode(socket1, @test_channel)
+    client1.raw("SAMODE #{@test_channel} +o #{@test_nick}")
+    wait_for_mode(client1, @test_channel)
 
     client2 = create_connected_client(@test_nick2)
 
@@ -88,14 +86,13 @@ class NamesIntegrationTest < Minitest::Test
 
   def test_multi_message_names
     client = create_connected_client(@test_nick)
-    socket = client.instance_variable_get(:@socket)
 
-    become_oper(socket)
+    become_oper(client)
 
     client.join(@test_channel)
 
-    socket.write("SAMODE #{@test_channel} +o #{@test_nick}")
-    wait_for_mode(socket, @test_channel)
+    client.raw("SAMODE #{@test_channel} +o #{@test_nick}")
+    wait_for_mode(client, @test_channel)
 
     clients = []
     4.times do |i|
@@ -141,24 +138,25 @@ class NamesIntegrationTest < Minitest::Test
     client
   end
 
-  def wait_for_mode(socket, channel)
-    start_time = Time.now
-    loop do
-      raw = socket.read
-      break if raw&.include?("MODE") && raw.include?(channel)
-      break if Time.now - start_time > 5
-      sleep 0.01
+  def wait_for_mode(client, channel)
+    mode_received = false
+    client.on(:raw) do |event|
+      msg = event.message
+      mode_received = true if msg&.command == "MODE" && msg.params.include?(channel)
+    end
+    deadline = Time.now + 5
+    until mode_received || Time.now > deadline
+      sleep 0.05
     end
   end
 
-  def become_oper(socket)
-    socket.write("OPER testoper testpass")
-    start_time = Time.now
-    loop do
-      raw = socket.read
-      break if raw&.include?("381")
-      break if Time.now - start_time > 5
-      sleep 0.01
+  def become_oper(client)
+    oper_success = false
+    client.on(:raw) { |event| oper_success = true if event.message&.command == "381" }
+    client.raw("OPER testoper testpass")
+    deadline = Time.now + 5
+    until oper_success || Time.now > deadline
+      sleep 0.05
     end
   end
 end

@@ -50,7 +50,7 @@ class JoinPartIntegrationTest < Minitest::Test
     chan_c = "#{@test_channel}c"
 
     message = Yaic::Message.new(command: "JOIN", params: ["#{chan_a},#{chan_b},#{chan_c}"])
-    client.instance_variable_get(:@socket).write(message.to_s)
+    client.raw(message.to_s)
     sleep 1
 
     assert client.channels.key?(chan_a)
@@ -105,7 +105,7 @@ class JoinPartIntegrationTest < Minitest::Test
     client.on(:error) { |e| error_event = e if [403, 442].include?(e.numeric) }
 
     message = Yaic::Message.new(command: "PART", params: ["#notinchannel#{Process.pid}"])
-    client.instance_variable_get(:@socket).write(message.to_s)
+    client.raw(message.to_s)
     sleep 0.2
 
     refute_nil error_event

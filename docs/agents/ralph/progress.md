@@ -540,6 +540,25 @@ All 16 planned features are complete. The library now provides:
 - All public methods are thread-safe
 - README.md provides complete documentation
 
+### Session 2025-11-29 (21)
+
+**Feature**: 19-fix-qa
+**Status**: Completed
+
+**What was done**:
+- Added public `raw(command)` method to Client class for sending arbitrary IRC commands
+- Updated all integration tests to use `client.raw()` instead of `instance_variable_get(:@socket).write()`
+- Updated files: mode_test.rb, kick_test.rb, names_test.rb, nick_test.rb, join_part_test.rb, who_whois_test.rb
+- Updated helper methods `become_oper` and `wait_for_mode` to use client.raw
+- All tests pass (267 runs, 575 assertions, 0 failures)
+
+**Notes for next session**:
+- `client.raw(command)` is now the public way to send arbitrary IRC commands
+- Integration tests no longer access internal socket via instance_variable_get
+- The one remaining instance_variable_get in socket_test.rb is appropriate (testing Socket class internals)
+
+---
+
 ## Suggested Next Feature
 
 All planned features complete! The library now has a clean, blocking API with background event processing.

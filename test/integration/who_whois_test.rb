@@ -130,8 +130,7 @@ class WhoWhoisIntegrationTest < Minitest::Test
     client1 = create_connected_client(@test_nick)
     client2 = create_connected_client(@test_nick2)
 
-    socket2 = client2.instance_variable_get(:@socket)
-    socket2.write("AWAY :I am busy")
+    client2.raw("AWAY :I am busy")
     sleep 0.5
 
     whois_event = nil

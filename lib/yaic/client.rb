@@ -225,6 +225,10 @@ module Yaic
       @socket.write(message.to_s)
     end
 
+    def raw(command)
+      @socket.write(command)
+    end
+
     private
 
     def set_state(new_state)

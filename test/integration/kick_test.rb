@@ -14,13 +14,12 @@ class KickIntegrationTest < Minitest::Test
 
   def test_kick_user
     client1 = create_connected_client(@test_nick)
-    socket1 = client1.instance_variable_get(:@socket)
 
-    become_oper(client1, socket1)
+    become_oper(client1)
 
     client1.join(@test_channel)
 
-    socket1.write("SAMODE #{@test_channel} +o #{@test_nick}")
+    client1.raw("SAMODE #{@test_channel} +o #{@test_nick}")
     sleep 0.5
 
     client2 = create_connected_client(@test_nick2)
@@ -40,13 +39,12 @@ class KickIntegrationTest < Minitest::Test
 
   def test_kick_with_reason
     client1 = create_connected_client(@test_nick)
-    socket1 = client1.instance_variable_get(:@socket)
 
-    become_oper(client1, socket1)
+    become_oper(client1)
 
     client1.join(@test_channel)
 
-    socket1.write("SAMODE #{@test_channel} +o #{@test_nick}")
+    client1.raw("SAMODE #{@test_channel} +o #{@test_nick}")
     sleep 0.5
 
     client2 = create_connected_client(@test_nick2)
@@ -85,13 +83,12 @@ class KickIntegrationTest < Minitest::Test
 
   def test_kick_non_existent_user
     client1 = create_connected_client(@test_nick)
-    socket1 = client1.instance_variable_get(:@socket)
 
-    become_oper(client1, socket1)
+    become_oper(client1)
 
     client1.join(@test_channel)
 
-    socket1.write("SAMODE #{@test_channel} +o #{@test_nick}")
+    client1.raw("SAMODE #{@test_channel} +o #{@test_nick}")
     sleep 0.5
 
     error_received = false
@@ -107,13 +104,12 @@ class KickIntegrationTest < Minitest::Test
 
   def test_receive_kick_others
     client1 = create_connected_client(@test_nick)
-    socket1 = client1.instance_variable_get(:@socket)
 
-    become_oper(client1, socket1)
+    become_oper(client1)
 
     client1.join(@test_channel)
 
-    socket1.write("SAMODE #{@test_channel} +o #{@test_nick}")
+    client1.raw("SAMODE #{@test_channel} +o #{@test_nick}")
     sleep 0.5
 
     client2 = create_connected_client(@test_nick2)
@@ -126,7 +122,7 @@ class KickIntegrationTest < Minitest::Test
     kick_event = nil
     client2.on(:kick) { |event| kick_event = event }
 
-    socket1.write("KICK #{@test_channel} #{third_nick} :Goodbye")
+    client1.raw("KICK #{@test_channel} #{third_nick} :Goodbye")
     sleep 0.5
 
     refute_nil kick_event
@@ -143,13 +139,12 @@ class KickIntegrationTest < Minitest::Test
 
   def test_receive_kick_self
     client1 = create_connected_client(@test_nick)
-    socket1 = client1.instance_variable_get(:@socket)
 
-    become_oper(client1, socket1)
+    become_oper(client1)
 
     client1.join(@test_channel)
 
-    socket1.write("SAMODE #{@test_channel} +o #{@test_nick}")
+    client1.raw("SAMODE #{@test_channel} +o #{@test_nick}")
     sleep 0.5
 
     client2 = create_connected_client(@test_nick2)
@@ -160,7 +155,7 @@ class KickIntegrationTest < Minitest::Test
 
     assert client2.channels.key?(@test_channel)
 
-    socket1.write("KICK #{@test_channel} #{@test_nick2} :You are kicked")
+    client1.raw("KICK #{@test_channel} #{@test_nick2} :You are kicked")
     sleep 0.5
 
     refute_nil kick_event
@@ -193,10 +188,10 @@ class KickIntegrationTest < Minitest::Test
     client
   end
 
-  def become_oper(client, socket)
+  def become_oper(client)
     oper_success = false
     client.on(:raw) { |event| oper_success = true if event.message&.command == "381" }
-    socket.write("OPER testoper testpass")
+    client.raw("OPER testoper testpass")
     deadline = Time.now + 5
     until oper_success || Time.now > deadline
       sleep 0.05
