@@ -4,7 +4,6 @@ set -e
 RALPH_DIR=".claude/ralph"
 PROMPT_FILE="$RALPH_DIR/prompt.md"
 CONTROL_FILE="$RALPH_DIR/loop-control"
-UUID_FILE="$RALPH_DIR/uuid"
 
 if [ ! -f "$PROMPT_FILE" ]; then
     echo "Error: $PROMPT_FILE not found"
@@ -24,16 +23,8 @@ while true; do
 
     PROMPT_CONTENT=$(cat "$PROMPT_FILE")
 
-    if [ -f "$UUID_FILE" ]; then
-        UUID=$(cat "$UUID_FILE")
-        echo "Resuming session: $UUID"
-        RALPH_WIGGUM_LOOP=true claude --fork-session --resume="$UUID" "Go" || true
-    else
-        UUID=$(uuidgen | tr '[:upper:]' '[:lower:]')
-        echo "$UUID" > "$UUID_FILE"
-        echo "Starting new session: $UUID"
-        RALPH_WIGGUM_LOOP=true claude --session-id="$UUID" "$PROMPT_CONTENT" || true
-    fi
+    echo "Starting new session..."
+    RALPH_WIGGUM_LOOP=true claude "$PROMPT_CONTENT" || true
 
     echo ""
     echo "Session ended. Checking if loop should continue..."
