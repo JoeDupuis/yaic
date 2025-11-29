@@ -21,9 +21,12 @@ class SocketIntegrationTest < Minitest::Test
     socket = Yaic::Socket.new("localhost", 6667, ssl: false)
     socket.connect
 
+    socket.write("NICK #{@test_nick}")
+    socket.write("USER #{@test_nick} 0 * :Test")
+
     message = read_with_timeout(socket, 5)
-    refute_nil message, "Server should send initial message on connect"
-    assert message.end_with?("\r\n", "\n")
+    refute_nil message, "Server should send message after registration"
+    assert message.end_with?("\r\n") || message.end_with?("\n")
   ensure
     socket&.disconnect
   end

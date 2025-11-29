@@ -84,6 +84,18 @@ module Yaic
       self
     end
 
+    def privmsg(target, text)
+      message = Message.new(command: "PRIVMSG", params: [target, text])
+      @socket.write(message.to_s)
+    end
+
+    alias_method :msg, :privmsg
+
+    def notice(target, text)
+      message = Message.new(command: "NOTICE", params: [target, text])
+      @socket.write(message.to_s)
+    end
+
     private
 
     def send_registration

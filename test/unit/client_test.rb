@@ -390,6 +390,78 @@ class ClientTest < Minitest::Test
     assert_includes events, :message
   end
 
+  def test_privmsg_formats_correctly
+    mock_socket = MockSocket.new
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    client.instance_variable_set(:@socket, mock_socket)
+    client.instance_variable_set(:@state, :connected)
+
+    client.privmsg("#test", "Hello")
+
+    assert_equal "PRIVMSG #test :Hello\r\n", mock_socket.written.last
+  end
+
+  def test_privmsg_with_colon_in_text
+    mock_socket = MockSocket.new
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    client.instance_variable_set(:@socket, mock_socket)
+    client.instance_variable_set(:@state, :connected)
+
+    client.privmsg("#test", ":smile:")
+
+    assert_equal "PRIVMSG #test ::smile:\r\n", mock_socket.written.last
+  end
+
+  def test_notice_formats_correctly
+    mock_socket = MockSocket.new
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    client.instance_variable_set(:@socket, mock_socket)
+    client.instance_variable_set(:@state, :connected)
+
+    client.notice("nick", "Info")
+
+    assert_equal "NOTICE nick :Info\r\n", mock_socket.written.last
+  end
+
+  def test_privmsg_parses_event_correctly
+    client = Yaic::Client.new(host: "localhost", port: 6667)
+    received_event = nil
+    client.on(:message) { |event| received_event = event }
+
+    message = Yaic::Message.parse(":dan!d@host PRIVMSG #ruby :Hello everyone\r\n")
+    client.handle_message(message)
+
+    assert_equal :message, received_event.type
+    assert_equal "dan", received_event.source.nick
+    assert_equal "#ruby", received_event.target
+    assert_equal "Hello everyone", received_event.text
+  end
+
+  def test_notice_parses_event_correctly
+    client = Yaic::Client.new(host: "localhost", port: 6667)
+    received_event = nil
+    client.on(:notice) { |event| received_event = event }
+
+    message = Yaic::Message.parse(":server NOTICE * :Looking up hostname\r\n")
+    client.handle_message(message)
+
+    assert_equal :notice, received_event.type
+    assert_equal "server", received_event.source.raw
+    assert_equal "*", received_event.target
+    assert_equal "Looking up hostname", received_event.text
+  end
+
+  def test_msg_is_alias_for_privmsg
+    mock_socket = MockSocket.new
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    client.instance_variable_set(:@socket, mock_socket)
+    client.instance_variable_set(:@state, :connected)
+
+    client.msg("#test", "Hello via alias")
+
+    assert_equal "PRIVMSG #test :Hello via alias\r\n", mock_socket.written.last
+  end
+
   class MockSocket
     attr_accessor :connect_response
     attr_reader :written

@@ -10,7 +10,7 @@
 
 ## Current State
 
-Features 01-05 complete. Ready for `06-privmsg-notice.md`.
+Features 01-06 complete. Ready for `07-join-part.md`.
 
 ## Feature Order
 
@@ -21,7 +21,7 @@ Features should be implemented in this order (dependencies noted):
 3. ~~`03-registration.md`~~ ✅ - Depends on 01, 02
 4. ~~`04-ping-pong.md`~~ ✅ - Depends on 01, 02, 03
 5. ~~`05-event-system.md`~~ ✅ - Depends on 01
-6. `06-privmsg-notice.md` - Depends on 01-05
+6. ~~`06-privmsg-notice.md`~~ ✅ - Depends on 01-05
 7. `07-join-part.md` - Depends on 01-05
 8. `08-quit.md` - Depends on 01, 02, 05
 9. `09-nick-change.md` - Depends on 01, 02, 03, 05
@@ -154,8 +154,31 @@ Features should be implemented in this order (dependencies noted):
 - Event object: `event.type`, `event.message`, `event.<attribute>` (dynamic access)
 - `:disconnect` event not implemented (no event loop yet to detect disconnection)
 
+### Session 2025-11-28 (6)
+
+**Feature**: 06-privmsg-notice
+**Status**: Completed
+
+**What was done**:
+- Added `privmsg(target, text)` method to Client for sending private messages
+- Added `msg(target, text)` as alias for `privmsg`
+- Added `notice(target, text)` method to Client for sending notices
+- Modified Message#to_s to always use trailing prefix (`:`) for last param when multiple params exist
+- Fixed pre-existing failing test in socket_test.rb (test assumed server sends message on connect)
+- Unit tests for message formatting (PRIVMSG/NOTICE with special chars)
+- Unit tests for event parsing (PRIVMSG/NOTICE events)
+- Integration tests for sending to channels and users (4 tests)
+- Integration tests for receiving messages and notices (4 tests)
+- Integration tests for error handling (401 no such nick, 403/404 no such channel)
+- All tests pass, linter clean, QA passed
+
+**Notes for next session**:
+- Public interface additions: `client.privmsg(target, text)`, `client.msg(target, text)`, `client.notice(target, text)`
+- Message text always uses trailing prefix for proper formatting
+- Error events emitted for 401/403/404 errors
+
 ---
 
 ## Suggested Next Feature
 
-Continue with `06-privmsg-notice.md` - Implements sending PRIVMSG and NOTICE messages.
+Continue with `07-join-part.md` - Implements JOIN and PART channel commands.
