@@ -5,7 +5,7 @@ require "timeout"
 
 class SocketIntegrationTest < Minitest::Test
   def setup
-    skip_unless_server_available
+    require_server_available
     @test_nick = "t#{Process.pid}#{Time.now.to_i % 10000}"
   end
 
@@ -83,7 +83,7 @@ class SocketIntegrationTest < Minitest::Test
 
   private
 
-  def skip_unless_server_available
+  def require_server_available
     TCPSocket.new("localhost", 6667).close
   rescue Errno::ECONNREFUSED, Errno::ETIMEDOUT, Errno::EPERM
     flunk "IRC server not running. Start it with: bin/start-irc-server"

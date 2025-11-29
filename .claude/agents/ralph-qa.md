@@ -39,6 +39,7 @@ You are reviewing changes made by an implementor agent. Your job is to verify th
 - Tests use minitest assertions properly
 - Integration tests use inspircd docker container where relevant
 - Unit tests are fast and isolated
+- Make sure the agent didn't skip test needlessly. Skipping test should be for feature we're gonna implement later. Not because it's hard to make the test pass or some dependency is missing. If a test doesn't pass because say a dependency is unreachable, the agent should ask the user a question using the ask question tool.
 
 ### RFC Compliance
 - Message parsing follows IRC protocol spec

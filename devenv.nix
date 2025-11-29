@@ -4,6 +4,7 @@
 
   env = {
     LD_LIBRARY_PATH = "${config.devenv.profile}/lib";
+    RUBOCOP_CACHE_ROOT = "${config.devenv.state}/rubocop_cache";
   };
 
   packages = with pkgs; [

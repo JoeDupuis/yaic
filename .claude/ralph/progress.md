@@ -1,8 +1,16 @@
 # Progress Log
 
+## Testing Rules
+
+- **No skipping tests** unless it's for a feature we explicitly want to implement later (e.g., SSL tests pending infrastructure)
+- Tests should **flunk** (fail) if prerequisites are missing (e.g., IRC server not running)
+- A failing test means: either ask the user for help (start a server) or fix the code
+- **No sleep in tests** - make tests fast and reliable
+- Use unique generated nicknames for every test to avoid collisions
+
 ## Current State
 
-Features 01 and 02 complete. Ready for `03-registration.md`.
+Features 01, 02, and 03 complete. Ready for `04-ping-pong.md`.
 
 ## Feature Order
 
@@ -10,7 +18,7 @@ Features should be implemented in this order (dependencies noted):
 
 1. ~~`01-message-parsing.md`~~ ✅ - No deps, foundation for everything
 2. ~~`02-connection-socket.md`~~ ✅ - Depends on 01
-3. `03-registration.md` - Depends on 01, 02
+3. ~~`03-registration.md`~~ ✅ - Depends on 01, 02
 4. `04-ping-pong.md` - Depends on 01, 02, 03
 5. `05-event-system.md` - Depends on 01
 6. `06-privmsg-notice.md` - Depends on 01-05
@@ -69,8 +77,38 @@ Features should be implemented in this order (dependencies noted):
 - SSL tests skip with message referencing `16-ssl-test-infrastructure.md`
 - Integration tests require IRC server: run `bin/start-irc-server` first
 
+### Session 2025-11-28 (3)
+
+**Feature**: 03-registration
+**Status**: Completed
+
+**What was done**:
+- Implemented `Yaic::Registration` module with message factory methods (pass_message, nick_message, user_message)
+- Implemented `Yaic::Client` class with connection state machine (:disconnected → :connecting → :registering → :connected)
+- Handles NICK/USER registration sequence, optional PASS command
+- Handles RPL_WELCOME (001) to confirm registration
+- Handles RPL_ISUPPORT (005) to parse server capabilities
+- Handles ERR_NICKNAMEINUSE (433) with automatic nick retry (appends underscores)
+- Created custom InspIRCd config (`test/fixtures/inspircd.conf`) to disable connection throttling
+- Updated `bin/start-irc-server` to mount custom config
+- Added RUBOCOP_CACHE_ROOT to devenv.nix
+- Unit tests for message formatting (4 tests) and state machine (6 tests)
+- Integration tests for registration flows (4 tests)
+- All tests pass, linter clean, QA passed
+
+**Deferred items**:
+- Event emission for nick collision: Deferred to 05-event-system (event system not yet implemented)
+- Password integration test: Deferred (test server not configured with password requirement)
+
+**Notes for next session**:
+- Registration module available via `require "yaic"`
+- Public interface: `Yaic::Registration.pass_message(pw)`, `.nick_message(nick)`, `.user_message(user, realname)`
+- Client class available via `require "yaic"`
+- Public interface: `Yaic::Client.new(host:, port:, nick:, user:, realname:, password:, ssl:)`, `connect`, `disconnect`, `state`, `nick`, `isupport`
+- Integration tests require IRC server: run `bin/start-irc-server` first
+
 ---
 
 ## Suggested Next Feature
 
-Continue with `03-registration.md` - Implements IRC registration (NICK, USER, CAP negotiation).
+Continue with `04-ping-pong.md` - Implements PING/PONG keepalive handling.
