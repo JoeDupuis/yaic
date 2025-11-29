@@ -33,6 +33,8 @@ You are reviewing changes made by an implementor agent. Your job is to verify th
 - No comments in code (per project style)
 - Slim public interface - minimize exposed methods
 - Private methods are truly private (use Ruby's `private` keyword)
+- Timeout should be avoided. Especially in the library code.
+- instance_variable_get  should not be used
 
 ### Testing
 - Public interface is tested thoroughly
