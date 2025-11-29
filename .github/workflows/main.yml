@@ -23,6 +23,21 @@ jobs:
       - name: Run StandardRB
         run: bundle exec standardrb
 
+  security:
+    runs-on: ubuntu-latest
+    name: Security
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.4'
+          bundler-cache: true
+      - name: Run Brakeman
+        run: bin/brakeman
+
   test:
     runs-on: ubuntu-latest
     name: Ruby ${{ matrix.ruby }}

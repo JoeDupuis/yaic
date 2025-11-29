@@ -19,6 +19,7 @@ You are reviewing changes made by an implementor agent. Your job is to verify th
    ```bash
    bundle exec m test/
    bundle exec standardrb -A
+   bin/brakeman
    ```
 
 3. Check against conventions:
@@ -51,6 +52,10 @@ You are reviewing changes made by an implementor agent. Your job is to verify th
 ### Linting
 - standardrb passes with no errors
 - Run with `-A` to auto-fix where possible
+
+### Security
+- brakeman passes with no warnings
+- Run `bin/brakeman` to check for security issues
 
 ## Running Tests
 

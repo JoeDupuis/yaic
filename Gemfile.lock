@@ -7,6 +7,8 @@ GEM
   remote: https://rubygems.org/
   specs:
     ast (2.4.3)
+    brakeman (7.1.1)
+      racc
     date (3.5.0)
     erb (6.0.0)
     io-console (0.8.1)
@@ -85,6 +87,7 @@ PLATFORMS
   ruby
 
 DEPENDENCIES
+  brakeman
   irb
   m
   minitest (~> 5.16)

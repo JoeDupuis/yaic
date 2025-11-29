@@ -1,0 +1,65 @@
+# Feature: Brakeman Security Scanning
+
+## Description
+
+Add Brakeman security scanning to the project CI pipeline. Brakeman is a static
+analysis tool that checks Ruby code for security vulnerabilities.
+
+## Dependencies
+
+- 17-github-actions-ci (CI infrastructure must exist)
+
+## Implementation
+
+### 1. Install Brakeman
+
+Add brakeman to the Gemfile:
+```ruby
+gem "brakeman"
+```
+
+### 2. Create wrapper script
+
+Create `bin/brakeman` for easy invocation:
+```bash
+#!/usr/bin/env bash
+set -e
+bundle exec brakeman --force --no-pager "$@"
+```
+
+Note: `--force` is required because this is a gem, not a Rails app.
+
+### 3. Add to CI
+
+Add a security job to `.github/workflows/main.yml`:
+```yaml
+security:
+  runs-on: ubuntu-latest
+  name: Security
+  steps:
+    - uses: actions/checkout@v4
+      with:
+        persist-credentials: false
+    - name: Set up Ruby
+      uses: ruby/setup-ruby@v1
+      with:
+        ruby-version: '3.4'
+        bundler-cache: true
+    - name: Run Brakeman
+      run: bin/brakeman
+```
+
+### 4. Update QA agent
+
+Add brakeman to the QA agent's validation commands and add a Security section
+to the review checklist.
+
+## Test Descriptions
+
+No automated tests needed - Brakeman is run as part of CI.
+
+## Notes
+
+- Brakeman is designed for Rails apps but can scan any Ruby code with `--force`
+- The scan should pass with no warnings for the current codebase
+- Any new code that introduces security issues will fail the CI build

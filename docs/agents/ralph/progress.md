@@ -430,6 +430,23 @@ Features should be implemented in this order (dependencies noted):
 - Use `bundle exec rake test_unit` for fast unit tests locally
 - Use `bundle exec rake test_integration` for integration tests (requires IRC server)
 
+### Session 2025-11-28 (18)
+
+**Feature**: 18-brakeman-security-scanning
+**Status**: Completed
+
+**What was done**:
+- Added brakeman gem to Gemfile
+- Created `bin/brakeman` wrapper script (uses --force since this is a gem, not Rails)
+- Added security job to `.github/workflows/main.yml` running brakeman
+- Updated QA agent instructions to include brakeman in validation commands
+- Brakeman passes with no warnings
+
+**Notes for next session**:
+- Run `bin/brakeman` to check for security issues
+- CI now has lint, security, and test jobs
+- QA agent now checks for security issues as part of review
+
 ---
 
 ## Suggested Next Feature
@@ -456,6 +473,6 @@ All 16 planned features are complete. The library now provides:
 | Feature | Status | Description |
 |---------|--------|-------------|
 | 17-github-actions-ci.md | ✅ complete | Tests on Ruby 3.2 + 3.4, separate lint job |
-| 18-brakeman-security-scanning.md | pending | Security scanning with Brakeman |
+| 18-brakeman-security-scanning.md | ✅ complete | Security scanning with Brakeman |
 
-Start with `18-brakeman-security-scanning.md` - Adds security scanning to CI.
+All features complete.
