@@ -3,3 +3,4 @@
 - debug/verbose mode
 - Remove the Timeouts in tests.
 - what happens if the connection is killed?
+- Faster tests
