@@ -1,2 +1,6 @@
 #!/usr/bin/env bash
-kill $PPID
+PID_FILE="$CLAUDE_PROJECT_DIR/.claude/ralph/pid"
+trap "rm -f \"$PID_FILE\"" EXIT
+if [ -f "$PID_FILE" ]; then
+    kill $(cat "$PID_FILE")
+fi
