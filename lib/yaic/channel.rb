@@ -12,5 +12,11 @@ module Yaic
       @users = {}
       @modes = {}
     end
+
+    def set_topic(topic, setter = nil, time = nil)
+      @topic = topic
+      @topic_setter = setter if setter
+      @topic_time = time if time
+    end
   end
 end

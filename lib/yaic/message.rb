@@ -41,7 +41,7 @@ module Yaic
 
       @params.each_with_index do |param, idx|
         is_last = idx == @params.length - 1
-        parts << if is_last && needs_trailing_prefix?(param)
+        parts << if is_last && needs_trailing_prefix?(param, @params.length)
           ":#{param}"
         else
           param
@@ -53,8 +53,8 @@ module Yaic
 
     private
 
-    def needs_trailing_prefix?(param)
-      param.empty? || param.include?(" ") || param.start_with?(":")
+    def needs_trailing_prefix?(param, param_count)
+      param.empty? || param.include?(" ") || param.start_with?(":") || param_count > 1
     end
 
     class << self

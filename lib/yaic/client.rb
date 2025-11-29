@@ -70,6 +70,12 @@ module Yaic
         handle_part(message)
       when "NICK"
         handle_nick(message)
+      when "TOPIC"
+        handle_topic(message)
+      when "332"
+        handle_rpl_topic(message)
+      when "333"
+        handle_rpl_topicwhotime(message)
       end
 
       emit_events(message)
@@ -129,6 +135,12 @@ module Yaic
       return @nick if new_nick.nil?
 
       message = Message.new(command: "NICK", params: [new_nick])
+      @socket.write(message.to_s)
+    end
+
+    def topic(channel, new_topic = nil)
+      params = new_topic.nil? ? [channel] : [channel, new_topic]
+      message = Message.new(command: "TOPIC", params: params)
       @socket.write(message.to_s)
     end
 
@@ -210,6 +222,35 @@ module Yaic
           channel.users[new_nick] = user_data
         end
       end
+    end
+
+    def handle_topic(message)
+      channel_name = message.params[0]
+      topic_text = message.params[1]
+      setter_nick = message.source&.nick
+      return unless channel_name
+
+      channel = @channels[channel_name]
+      channel&.set_topic(topic_text, setter_nick)
+    end
+
+    def handle_rpl_topic(message)
+      channel_name = message.params[1]
+      topic_text = message.params[2]
+      return unless channel_name
+
+      channel = @channels[channel_name]
+      channel&.set_topic(topic_text)
+    end
+
+    def handle_rpl_topicwhotime(message)
+      channel_name = message.params[1]
+      setter = message.params[2]
+      time_str = message.params[3]
+      return unless channel_name && setter && time_str
+
+      channel = @channels[channel_name]
+      channel&.set_topic(channel&.topic, setter, Time.at(time_str.to_i))
     end
 
     def emit_events(message)

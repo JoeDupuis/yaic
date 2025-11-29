@@ -10,7 +10,7 @@
 
 ## Current State
 
-Features 01-09 complete. Ready for `10-topic.md`.
+Features 01-10 complete. Ready for `11-kick.md`.
 
 ## Feature Order
 
@@ -25,7 +25,7 @@ Features should be implemented in this order (dependencies noted):
 7. ~~`07-join-part.md`~~ ✅ - Depends on 01-05
 8. ~~`08-quit.md`~~ ✅ - Depends on 01, 02, 05
 9. ~~`09-nick-change.md`~~ ✅ - Depends on 01, 02, 03, 05
-10. `10-topic.md` - Depends on 07
+10. ~~`10-topic.md`~~ ✅ - Depends on 07
 11. `11-kick.md` - Depends on 07
 12. `12-names.md` - Depends on 07
 13. `13-mode.md` - Depends on 07
@@ -243,8 +243,31 @@ Features should be implemented in this order (dependencies noted):
 - Channel user tracking updates across all channels when nick changes
 - 433 (nick in use) only auto-retries during registration state
 
+### Session 2025-11-28 (10)
+
+**Feature**: 10-topic
+**Status**: Completed
+
+**What was done**:
+- Added `client.topic(channel, new_topic = nil)` method for getting/setting topics
+- Added `set_topic(topic, setter, time)` method to Channel class
+- Added handlers for TOPIC command, 332 (RPL_TOPIC), 333 (RPL_TOPICWHOTIME)
+- Topic changes update channel.topic, channel.topic_setter, channel.topic_time
+- `:topic` event emitted with channel, topic, setter attributes
+- Modified Message#to_s to always use trailing prefix for last param when 2+ params (better IRC compliance)
+- Unit tests for TOPIC formatting, parsing, channel state tracking (8 new tests)
+- Integration tests for get topic, get no topic, set topic, clear topic, receive topic change (5 tests)
+- 1 integration test skipped (set topic without permission) due to InspIRCd 4 not auto-opping channel creators
+- All tests pass (161 runs, 319 assertions, 3 skips), linter clean, QA passed
+
+**Notes for next session**:
+- Public interface: `client.topic(channel)` (get), `client.topic(channel, text)` (set), `client.topic(channel, "")` (clear)
+- Channel object now has: `topic`, `topic_setter`, `topic_time` attributes
+- Message#to_s now always uses trailing prefix for multi-param messages (proper IRC format)
+- InspIRCd 4 limitation: users aren't auto-opped when creating channels, affecting +t mode tests
+
 ---
 
 ## Suggested Next Feature
 
-Continue with `10-topic.md` - Implements TOPIC command for getting/setting channel topics.
+Continue with `11-kick.md` - Implements KICK command for removing users from channels.
