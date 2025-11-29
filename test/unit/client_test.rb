@@ -102,6 +102,110 @@ class ClientTest < Minitest::Test
     assert nick_idx < user_idx, "NICK should be sent before USER"
   end
 
+  def test_responds_to_ping_with_pong
+    mock_socket = MockSocket.new
+    client = Yaic::Client.new(
+      host: "localhost",
+      port: 6667,
+      nick: "testnick"
+    )
+    client.instance_variable_set(:@socket, mock_socket)
+    client.instance_variable_set(:@state, :connected)
+
+    message = Yaic::Message.parse("PING :irc.example.com\r\n")
+    client.handle_message(message)
+
+    assert mock_socket.written.any? { |m| m.include?("PONG irc.example.com") }
+  end
+
+  def test_responds_to_ping_without_colon
+    mock_socket = MockSocket.new
+    client = Yaic::Client.new(
+      host: "localhost",
+      port: 6667,
+      nick: "testnick"
+    )
+    client.instance_variable_set(:@socket, mock_socket)
+    client.instance_variable_set(:@state, :connected)
+
+    message = Yaic::Message.parse("PING token123\r\n")
+    client.handle_message(message)
+
+    assert mock_socket.written.any? { |m| m.include?("PONG token123") }
+  end
+
+  def test_responds_to_ping_during_registration
+    mock_socket = MockSocket.new
+    client = Yaic::Client.new(
+      host: "localhost",
+      port: 6667,
+      nick: "testnick"
+    )
+    client.instance_variable_set(:@socket, mock_socket)
+    client.instance_variable_set(:@state, :registering)
+
+    message = Yaic::Message.parse("PING :test.server\r\n")
+    client.handle_message(message)
+
+    assert mock_socket.written.any? { |m| m.include?("PONG test.server") }
+  end
+
+  def test_pong_response_with_spaces_uses_trailing
+    mock_socket = MockSocket.new
+    client = Yaic::Client.new(
+      host: "localhost",
+      port: 6667,
+      nick: "testnick"
+    )
+    client.instance_variable_set(:@socket, mock_socket)
+    client.instance_variable_set(:@state, :connected)
+
+    message = Yaic::Message.parse("PING :some server\r\n")
+    client.handle_message(message)
+
+    pong = mock_socket.written.find { |m| m.include?("PONG") }
+    assert_equal "PONG :some server\r\n", pong
+  end
+
+  def test_last_received_at_updated_on_message
+    client = Yaic::Client.new(
+      host: "localhost",
+      port: 6667,
+      nick: "testnick"
+    )
+    client.instance_variable_set(:@state, :connected)
+
+    before = Time.now
+    message = Yaic::Message.parse(":server 001 testnick :Welcome\r\n")
+    client.handle_message(message)
+
+    assert client.last_received_at >= before
+  end
+
+  def test_connection_stale_when_no_data_received
+    client = Yaic::Client.new(
+      host: "localhost",
+      port: 6667,
+      nick: "testnick"
+    )
+    client.instance_variable_set(:@state, :connected)
+    client.instance_variable_set(:@last_received_at, Time.now - 200)
+
+    assert client.connection_stale?
+  end
+
+  def test_connection_not_stale_with_recent_data
+    client = Yaic::Client.new(
+      host: "localhost",
+      port: 6667,
+      nick: "testnick"
+    )
+    client.instance_variable_set(:@state, :connected)
+    client.instance_variable_set(:@last_received_at, Time.now - 10)
+
+    refute client.connection_stale?
+  end
+
   class MockSocket
     attr_accessor :connect_response
     attr_reader :written

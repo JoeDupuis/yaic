@@ -10,7 +10,7 @@
 
 ## Current State
 
-Features 01, 02, and 03 complete. Ready for `04-ping-pong.md`.
+Features 01, 02, 03, and 04 complete. Ready for `05-event-system.md`.
 
 ## Feature Order
 
@@ -19,7 +19,7 @@ Features should be implemented in this order (dependencies noted):
 1. ~~`01-message-parsing.md`~~ ✅ - No deps, foundation for everything
 2. ~~`02-connection-socket.md`~~ ✅ - Depends on 01
 3. ~~`03-registration.md`~~ ✅ - Depends on 01, 02
-4. `04-ping-pong.md` - Depends on 01, 02, 03
+4. ~~`04-ping-pong.md`~~ ✅ - Depends on 01, 02, 03
 5. `05-event-system.md` - Depends on 01
 6. `06-privmsg-notice.md` - Depends on 01-05
 7. `07-join-part.md` - Depends on 01-05
@@ -107,8 +107,32 @@ Features should be implemented in this order (dependencies noted):
 - Public interface: `Yaic::Client.new(host:, port:, nick:, user:, realname:, password:, ssl:)`, `connect`, `disconnect`, `state`, `nick`, `isupport`
 - Integration tests require IRC server: run `bin/start-irc-server` first
 
+### Session 2025-11-28 (4)
+
+**Feature**: 04-ping-pong
+**Status**: Completed
+
+**What was done**:
+- Added PING handling to `Yaic::Client` class in `handle_message`
+- Automatically responds to PING with PONG (token mirrored exactly)
+- Works during registration and when connected
+- Handles PING with or without colon prefix
+- Added `STALE_TIMEOUT = 180` constant for connection timeout detection
+- Added `last_received_at` attribute (updated on every message received)
+- Added `connection_stale?` method to check if connection may be dead
+- Reduced `pingfreq` in test server config from 120s to 5s for faster testing
+- Unit tests for PING/PONG handling and connection staleness (8 tests)
+- Integration tests including Client automatically responding to server-initiated PINGs (4 tests)
+- All tests pass, linter clean, QA passed
+
+**Notes for next session**:
+- Client class now handles PING automatically in `handle_message`
+- Public interface additions: `last_received_at`, `connection_stale?`
+- PONG response uses Message class so spaces in token get proper `:` trailing prefix
+- Integration tests now use 5-second ping frequency for fast testing
+
 ---
 
 ## Suggested Next Feature
 
-Continue with `04-ping-pong.md` - Implements PING/PONG keepalive handling.
+Continue with `05-event-system.md` - Implements event callbacks for IRC events.
