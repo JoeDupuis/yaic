@@ -13,7 +13,7 @@ EXIT_SCRIPT: .claude/ralph/bin/kill-claude
 - **Data model**: See `docs/agents/data-model.md`
 - **RFC reference**: See `docs/agents/rfc/modern-irc/` (large, query specific files as needed)
 - **Features**: See `.claude/ralph/features/`
-- **Progress**: See `.claude/ralph/progress.md`
+- **Progress**: See `docs/agents/ralph/progress.md`
 
 ## Running Things
 
@@ -52,7 +52,7 @@ Configure tests to connect to localhost:6667 (plain) or localhost:6697 (SSL).
 
 ### 1. Check Progress
 
-Read `.claude/ralph/progress.md` to see:
+Read `docs/agents/ralph/progress.md` to see:
 - What's been done
 - What to work on next
 - Any notes from previous sessions
@@ -61,7 +61,7 @@ Read `.claude/ralph/progress.md` to see:
 
 Choose from `.claude/ralph/features/`. Pick a `.md` file (not `.md.done`) whose dependencies are satisfied.
 
-If unclear which to pick, check `progress.md` for suggestions.
+If unclear which to pick, check `docs/agents/ralph/progress.md` for suggestions.
 
 ### 3. Implement the Feature
 
@@ -103,7 +103,7 @@ When feature is done and QA passes:
    mv .claude/ralph/features/feature-name.md .claude/ralph/features/feature-name.md.done
    ```
 
-2. Update `.claude/ralph/progress.md`:
+2. Update `docs/agents/ralph/progress.md`:
    - Add entry to Session History
    - Update Current State
    - Suggest next feature
