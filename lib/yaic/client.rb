@@ -91,6 +91,8 @@ module Yaic
         handle_rpl_namreply(message)
       when "366"
         handle_rpl_endofnames(message)
+      when "MODE"
+        handle_mode(message)
       end
 
       emit_events(message)
@@ -167,6 +169,14 @@ module Yaic
 
     def names(channel)
       message = Message.new(command: "NAMES", params: [channel])
+      @socket.write(message.to_s)
+    end
+
+    def mode(target, modes = nil, *args)
+      params = [target]
+      params << modes if modes
+      params.concat(args) unless args.empty?
+      message = Message.new(command: "MODE", params: params)
       @socket.write(message.to_s)
     end
 
@@ -319,6 +329,87 @@ module Yaic
       end
 
       emit(:names, message, channel: channel_name, users: pending)
+    end
+
+    def handle_mode(message)
+      target = message.params[0]
+      return unless target
+
+      modes_str = message.params[1]
+      return unless modes_str
+
+      channel = @channels[target]
+      return unless channel
+
+      params = message.params[2..] || []
+      param_idx = 0
+
+      adding = true
+      modes_str.each_char do |char|
+        case char
+        when "+"
+          adding = true
+        when "-"
+          adding = false
+        when "o", "v", "h", "a", "q"
+          nick = params[param_idx]
+          param_idx += 1
+          apply_user_mode(channel, nick, char, adding) if nick
+        when "k"
+          if adding
+            channel.modes[:key] = params[param_idx]
+            param_idx += 1
+          else
+            channel.modes.delete(:key)
+          end
+        when "l"
+          if adding
+            channel.modes[:limit] = params[param_idx].to_i
+            param_idx += 1
+          else
+            channel.modes.delete(:limit)
+          end
+        when "m"
+          channel.modes[:moderated] = adding ? true : nil
+          channel.modes.delete(:moderated) unless adding
+        when "i"
+          channel.modes[:invite_only] = adding ? true : nil
+          channel.modes.delete(:invite_only) unless adding
+        when "t"
+          channel.modes[:topic_protected] = adding ? true : nil
+          channel.modes.delete(:topic_protected) unless adding
+        when "n"
+          channel.modes[:no_external] = adding ? true : nil
+          channel.modes.delete(:no_external) unless adding
+        when "s"
+          channel.modes[:secret] = adding ? true : nil
+          channel.modes.delete(:secret) unless adding
+        when "p"
+          channel.modes[:private] = adding ? true : nil
+          channel.modes.delete(:private) unless adding
+        when "b"
+          param_idx += 1
+        end
+      end
+    end
+
+    def apply_user_mode(channel, nick, mode_char, adding)
+      return unless channel.users.key?(nick)
+
+      mode_sym = case mode_char
+      when "o" then :op
+      when "v" then :voice
+      when "h" then :halfop
+      when "a" then :admin
+      when "q" then :owner
+      end
+      return unless mode_sym
+
+      if adding
+        channel.users[nick] << mode_sym
+      else
+        channel.users[nick].delete(mode_sym)
+      end
     end
 
     def parse_user_with_prefix(user_entry)

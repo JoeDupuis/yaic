@@ -10,7 +10,7 @@
 
 ## Current State
 
-Features 01-12 complete. Ready for `13-mode.md`.
+Features 01-13 complete. Ready for `14-who-whois.md`.
 
 ## Feature Order
 
@@ -28,7 +28,7 @@ Features should be implemented in this order (dependencies noted):
 10. ~~`10-topic.md`~~ ✅ - Depends on 07
 11. ~~`11-kick.md`~~ ✅ - Depends on 07
 12. ~~`12-names.md`~~ ✅ - Depends on 07
-13. `13-mode.md` - Depends on 07
+13. ~~`13-mode.md`~~ ✅ - Depends on 07
 14. `14-who-whois.md` - Depends on 01, 05
 15. `15-client-api.md` - Depends on ALL (final integration)
 
@@ -311,8 +311,30 @@ Features should be implemented in this order (dependencies noted):
 - `channel.users` is populated from NAMES responses
 - Prefix parsing handles @op, +voice, %halfop, ~owner, &admin and multiple prefixes
 
+### Session 2025-11-28 (13)
+
+**Feature**: 13-mode
+**Status**: Completed
+
+**What was done**:
+- Added `client.mode(target, modes = nil, *args)` method for querying/setting modes
+- Added `handle_mode(message)` to parse MODE messages and update channel state
+- Added `apply_user_mode(channel, nick, mode_char, adding)` for user mode tracking
+- Channel mode tracking: moderated, invite_only, key, limit, topic_protected, no_external, secret, private
+- User mode tracking in channels: op, voice, halfop, admin, owner
+- Correctly parses +/- mode prefixes and handles mode parameters
+- Unit tests for MODE formatting, event parsing, channel/user state tracking (14 new tests)
+- Integration tests for user modes (get own, set invisible, cannot set other's) and channel modes (get, set as op, give op, set key, without permission) (8 tests)
+- All tests pass (209 runs, 429 assertions, 3 skips), linter clean, QA passed
+
+**Notes for next session**:
+- Public interface: `client.mode(target)` (query), `client.mode(target, modes)` (set), `client.mode(target, modes, *args)` (set with params)
+- `:mode` event emitted with `target`, `modes`, `args` attributes
+- `channel.modes` is a Hash[Symbol, Object] with keys like :moderated, :key, :limit
+- User modes tracked in `channel.users[nick]` as Set of symbols (:op, :voice, etc.)
+
 ---
 
 ## Suggested Next Feature
 
-Continue with `13-mode.md` - Implements MODE command for getting/setting channel and user modes.
+Continue with `14-who-whois.md` - Implements WHO and WHOIS commands for querying user information.

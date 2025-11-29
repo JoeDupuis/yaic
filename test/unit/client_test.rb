@@ -950,6 +950,197 @@ class ClientTest < Minitest::Test
     refute client.channels.key?("#test")
   end
 
+  def test_mode_query_formats_correctly
+    mock_socket = MockSocket.new
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    client.instance_variable_set(:@socket, mock_socket)
+    client.instance_variable_set(:@state, :connected)
+
+    client.mode("#test")
+
+    assert_equal "MODE #test\r\n", mock_socket.written.last
+  end
+
+  def test_mode_set_formats_correctly
+    mock_socket = MockSocket.new
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    client.instance_variable_set(:@socket, mock_socket)
+    client.instance_variable_set(:@state, :connected)
+
+    client.mode("#test", "+m")
+
+    assert_equal "MODE #test :+m\r\n", mock_socket.written.last
+  end
+
+  def test_mode_with_params_formats_correctly
+    mock_socket = MockSocket.new
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    client.instance_variable_set(:@socket, mock_socket)
+    client.instance_variable_set(:@state, :connected)
+
+    client.mode("#test", "+o", "nick")
+
+    assert_equal "MODE #test +o :nick\r\n", mock_socket.written.last
+  end
+
+  def test_mode_with_multiple_params
+    mock_socket = MockSocket.new
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    client.instance_variable_set(:@socket, mock_socket)
+    client.instance_variable_set(:@state, :connected)
+
+    client.mode("#test", "+ov", "nick1", "nick2")
+
+    assert_equal "MODE #test +ov nick1 :nick2\r\n", mock_socket.written.last
+  end
+
+  def test_parse_mode_event
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    received_event = nil
+    client.on(:mode) { |event| received_event = event }
+
+    message = Yaic::Message.parse(":op!u@h MODE #test +o target\r\n")
+    client.handle_message(message)
+
+    assert_equal :mode, received_event.type
+    assert_equal "#test", received_event.target
+    assert_equal "+o", received_event.modes
+    assert_equal ["target"], received_event.args
+  end
+
+  def test_parse_multi_mode_event
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    received_event = nil
+    client.on(:mode) { |event| received_event = event }
+
+    message = Yaic::Message.parse(":op!u@h MODE #test +ov target1 target2\r\n")
+    client.handle_message(message)
+
+    assert_equal :mode, received_event.type
+    assert_equal "+ov", received_event.modes
+    assert_equal ["target1", "target2"], received_event.args
+  end
+
+  def test_track_channel_mode_moderated
+    mock_socket = MockSocket.new
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    client.instance_variable_set(:@socket, mock_socket)
+    client.instance_variable_set(:@state, :connected)
+
+    join_message = Yaic::Message.parse(":testnick!user@host JOIN #test\r\n")
+    client.handle_message(join_message)
+
+    mode_message = Yaic::Message.parse(":op!u@h MODE #test +m\r\n")
+    client.handle_message(mode_message)
+
+    channel = client.channels["#test"]
+    assert_equal true, channel.modes[:moderated]
+  end
+
+  def test_track_channel_mode_unset
+    mock_socket = MockSocket.new
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    client.instance_variable_set(:@socket, mock_socket)
+    client.instance_variable_set(:@state, :connected)
+
+    join_message = Yaic::Message.parse(":testnick!user@host JOIN #test\r\n")
+    client.handle_message(join_message)
+
+    mode_message = Yaic::Message.parse(":op!u@h MODE #test +m\r\n")
+    client.handle_message(mode_message)
+    assert_equal true, client.channels["#test"].modes[:moderated]
+
+    mode_message2 = Yaic::Message.parse(":op!u@h MODE #test -m\r\n")
+    client.handle_message(mode_message2)
+    refute client.channels["#test"].modes[:moderated]
+  end
+
+  def test_track_user_op_status_on_mode
+    mock_socket = MockSocket.new
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    client.instance_variable_set(:@socket, mock_socket)
+    client.instance_variable_set(:@state, :connected)
+
+    join_message = Yaic::Message.parse(":testnick!user@host JOIN #test\r\n")
+    client.handle_message(join_message)
+
+    channel = client.channels["#test"]
+    channel.users["target"] = Set.new
+
+    mode_message = Yaic::Message.parse(":op!u@h MODE #test +o target\r\n")
+    client.handle_message(mode_message)
+
+    assert channel.users["target"].include?(:op)
+  end
+
+  def test_track_user_voice_status_on_mode
+    mock_socket = MockSocket.new
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    client.instance_variable_set(:@socket, mock_socket)
+    client.instance_variable_set(:@state, :connected)
+
+    join_message = Yaic::Message.parse(":testnick!user@host JOIN #test\r\n")
+    client.handle_message(join_message)
+
+    channel = client.channels["#test"]
+    channel.users["target"] = Set.new
+
+    mode_message = Yaic::Message.parse(":op!u@h MODE #test +v target\r\n")
+    client.handle_message(mode_message)
+
+    assert channel.users["target"].include?(:voice)
+  end
+
+  def test_remove_user_op_status_on_mode
+    mock_socket = MockSocket.new
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    client.instance_variable_set(:@socket, mock_socket)
+    client.instance_variable_set(:@state, :connected)
+
+    join_message = Yaic::Message.parse(":testnick!user@host JOIN #test\r\n")
+    client.handle_message(join_message)
+
+    channel = client.channels["#test"]
+    channel.users["target"] = Set.new([:op])
+
+    mode_message = Yaic::Message.parse(":op!u@h MODE #test -o target\r\n")
+    client.handle_message(mode_message)
+
+    refute channel.users["target"].include?(:op)
+  end
+
+  def test_track_channel_key_mode
+    mock_socket = MockSocket.new
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    client.instance_variable_set(:@socket, mock_socket)
+    client.instance_variable_set(:@state, :connected)
+
+    join_message = Yaic::Message.parse(":testnick!user@host JOIN #test\r\n")
+    client.handle_message(join_message)
+
+    mode_message = Yaic::Message.parse(":op!u@h MODE #test +k secret\r\n")
+    client.handle_message(mode_message)
+
+    channel = client.channels["#test"]
+    assert_equal "secret", channel.modes[:key]
+  end
+
+  def test_track_channel_limit_mode
+    mock_socket = MockSocket.new
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    client.instance_variable_set(:@socket, mock_socket)
+    client.instance_variable_set(:@state, :connected)
+
+    join_message = Yaic::Message.parse(":testnick!user@host JOIN #test\r\n")
+    client.handle_message(join_message)
+
+    mode_message = Yaic::Message.parse(":op!u@h MODE #test +l 50\r\n")
+    client.handle_message(mode_message)
+
+    channel = client.channels["#test"]
+    assert_equal 50, channel.modes[:limit]
+  end
+
   class MockSocket
     attr_accessor :connect_response
     attr_reader :written
