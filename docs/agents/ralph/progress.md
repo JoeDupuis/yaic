@@ -10,7 +10,7 @@
 
 ## Current State
 
-Features 01-13 complete. Ready for `14-who-whois.md`.
+Features 01-14 complete. Ready for `15-client-api.md`.
 
 ## Feature Order
 
@@ -29,7 +29,7 @@ Features should be implemented in this order (dependencies noted):
 11. ~~`11-kick.md`~~ ✅ - Depends on 07
 12. ~~`12-names.md`~~ ✅ - Depends on 07
 13. ~~`13-mode.md`~~ ✅ - Depends on 07
-14. `14-who-whois.md` - Depends on 01, 05
+14. ~~`14-who-whois.md`~~ ✅ - Depends on 01, 05
 15. `15-client-api.md` - Depends on ALL (final integration)
 
 ---
@@ -333,8 +333,32 @@ Features should be implemented in this order (dependencies noted):
 - `channel.modes` is a Hash[Symbol, Object] with keys like :moderated, :key, :limit
 - User modes tracked in `channel.users[nick]` as Set of symbols (:op, :voice, etc.)
 
+### Session 2025-11-29 (14)
+
+**Feature**: 14-who-whois
+**Status**: Completed
+
+**What was done**:
+- Created `Yaic::WhoisResult` class for aggregating WHOIS data
+- Added `client.who(mask)` method for WHO queries
+- Added `client.whois(nick)` method for WHOIS queries
+- Added handlers for WHO numeric: 352 (RPL_WHOREPLY)
+- Added handlers for WHOIS numerics: 311 (RPL_WHOISUSER), 319 (RPL_WHOISCHANNELS), 312 (RPL_WHOISSERVER), 317 (RPL_WHOISIDLE), 330 (RPL_WHOISACCOUNT), 301 (RPL_AWAY), 318 (RPL_ENDOFWHOIS)
+- WHOIS data collected in `@pending_whois` until ENDOFWHOIS, then emitted as single `:whois` event
+- `:who` event emitted for each RPL_WHOREPLY with channel, user, host, server, nick, away, realname
+- Correctly handles interleaved messages during WHOIS collection
+- Unit tests for WHO/WHOIS formatting, parsing, and collection (16 tests)
+- Integration tests for WHO channel, WHO nick, WHO non-existent, WHOIS user, WHOIS with channels, WHOIS non-existent, WHOIS away user (7 tests)
+- All tests pass (232 runs, 463 assertions, 3 skips), linter clean, QA passed
+
+**Notes for next session**:
+- Public interface: `client.who(mask)`, `client.whois(nick)`
+- `:who` event emitted for each matching user with: channel, user, host, server, nick, away (boolean), realname
+- `:whois` event emitted after ENDOFWHOIS with `result:` (WhoisResult or nil if not found)
+- WhoisResult attributes: nick, user, host, realname, channels (Array), server, idle, signon (Time), account, away
+
 ---
 
 ## Suggested Next Feature
 
-Continue with `14-who-whois.md` - Implements WHO and WHOIS commands for querying user information.
+Continue with `15-client-api.md` - Final integration feature that depends on ALL previous features.

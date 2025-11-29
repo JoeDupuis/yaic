@@ -43,6 +43,7 @@ module Yaic
       @handlers = {}
       @channels = {}
       @pending_names = {}
+      @pending_whois = {}
     end
 
     def connect
@@ -93,6 +94,22 @@ module Yaic
         handle_rpl_endofnames(message)
       when "MODE"
         handle_mode(message)
+      when "352"
+        handle_rpl_whoreply(message)
+      when "311"
+        handle_rpl_whoisuser(message)
+      when "319"
+        handle_rpl_whoischannels(message)
+      when "312"
+        handle_rpl_whoisserver(message)
+      when "317"
+        handle_rpl_whoisidle(message)
+      when "330"
+        handle_rpl_whoisaccount(message)
+      when "301"
+        handle_rpl_away(message)
+      when "318"
+        handle_rpl_endofwhois(message)
       end
 
       emit_events(message)
@@ -177,6 +194,16 @@ module Yaic
       params << modes if modes
       params.concat(args) unless args.empty?
       message = Message.new(command: "MODE", params: params)
+      @socket.write(message.to_s)
+    end
+
+    def who(mask)
+      message = Message.new(command: "WHO", params: [mask])
+      @socket.write(message.to_s)
+    end
+
+    def whois(nick)
+      message = Message.new(command: "WHOIS", params: [nick])
       @socket.write(message.to_s)
     end
 
@@ -391,6 +418,85 @@ module Yaic
           param_idx += 1
         end
       end
+    end
+
+    def handle_rpl_whoreply(message)
+      channel = message.params[1]
+      user = message.params[2]
+      host = message.params[3]
+      server = message.params[4]
+      nick = message.params[5]
+      flags = message.params[6]
+      hopcount_realname = message.params[7]
+
+      away = flags&.include?("G") || false
+      realname = hopcount_realname&.sub(/^\d+\s*/, "") || ""
+
+      emit(:who, message, channel: channel, user: user, host: host, server: server,
+        nick: nick, away: away, realname: realname)
+    end
+
+    def handle_rpl_whoisuser(message)
+      nick = message.params[1]
+      user = message.params[2]
+      host = message.params[3]
+      realname = message.params[5]
+
+      @pending_whois[nick] = WhoisResult.new(nick: nick)
+      @pending_whois[nick].user = user
+      @pending_whois[nick].host = host
+      @pending_whois[nick].realname = realname
+    end
+
+    def handle_rpl_whoischannels(message)
+      nick = message.params[1]
+      channels_str = message.params[2]
+      return unless @pending_whois[nick] && channels_str
+
+      channels_str.split.each do |chan|
+        channel = chan.gsub(/^[@+%~&]+/, "")
+        @pending_whois[nick].channels << channel
+      end
+    end
+
+    def handle_rpl_whoisserver(message)
+      nick = message.params[1]
+      server = message.params[2]
+      return unless @pending_whois[nick]
+
+      @pending_whois[nick].server = server
+    end
+
+    def handle_rpl_whoisidle(message)
+      nick = message.params[1]
+      idle = message.params[2]&.to_i
+      signon = message.params[3]&.to_i
+      return unless @pending_whois[nick]
+
+      @pending_whois[nick].idle = idle
+      @pending_whois[nick].signon = signon ? Time.at(signon) : nil
+    end
+
+    def handle_rpl_whoisaccount(message)
+      nick = message.params[1]
+      account = message.params[2]
+      return unless @pending_whois[nick]
+
+      @pending_whois[nick].account = account
+    end
+
+    def handle_rpl_away(message)
+      nick = message.params[1]
+      away_msg = message.params[2]
+      return unless @pending_whois[nick]
+
+      @pending_whois[nick].away = away_msg
+    end
+
+    def handle_rpl_endofwhois(message)
+      nick = message.params[1]
+      result = @pending_whois.delete(nick)
+      emit(:whois, message, result: result)
     end
 
     def apply_user_mode(channel, nick, mode_char, adding)
