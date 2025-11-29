@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+
+set -e
+
+CONTAINER_NAME="inspircd"
+
+if docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
+  echo "inspircd is already running"
+  exit 0
+fi
+
+if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
+  echo "Starting existing inspircd container..."
+  docker start "$CONTAINER_NAME"
+else
+  echo "Creating and starting inspircd container..."
+  docker run -d --rm --name "$CONTAINER_NAME" -p 6667:6667 -p 6697:6697 inspircd/inspircd-docker
+fi
+
+echo "Waiting for IRC server to be ready..."
+sleep 2
+
+if nc -z localhost 6667 2>/dev/null; then
+  echo "IRC server is ready on ports 6667 (plain) and 6697 (SSL)"
+else
+  echo "Warning: IRC server may not be ready yet"
+fi

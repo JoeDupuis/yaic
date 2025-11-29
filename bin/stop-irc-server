@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+
+set -e
+
+CONTAINER_NAME="inspircd"
+
+if docker ps -a --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
+  echo "Stopping and removing inspircd container..."
+  docker rm -f "$CONTAINER_NAME"
+  echo "Done"
+else
+  echo "No inspircd container found"
+fi
