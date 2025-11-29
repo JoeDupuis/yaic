@@ -72,6 +72,11 @@ bundle exec m test/file_test.rb        # Run specific file
 bundle exec m test/file_test.rb:42     # Run specific test by line
 ```
 
+## Tips
+- While the test might not be parallelizable yet, it should be fine to run test, linting and security check in parallel.
+
+
+
 ## Reporting Back
 
 Report to the implementor agent:
