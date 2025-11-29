@@ -78,25 +78,32 @@ Implement:
 3. Run tests to verify
 4. Run linter
 
-### 4. Call QA
+### 4. QA Review (REQUIRED)
 
-After implementation, call the `ralph-qa` agent to review your changes:
+**A feature CANNOT be marked as done unless QA approves it.**
 
+After tests pass, run the QA agent:
+
+```bash
+claude --agent-prompt .claude/agents/ralph-qa.md
 ```
-Use the Task tool with the ralph-qa agent to review the implementation.
-```
 
-The QA agent will:
-- Check code style
-- Run tests
-- Verify RFC compliance
-- Report any issues
+Wait for QA to complete. The QA agent will review your implementation and either:
+- **APPROVE**: You may proceed to commit and mark complete
+- **FAIL**: You must fix the issues and re-run QA
 
-If QA finds issues, fix them and call QA again.
+**If QA fails:**
+1. Read the QA feedback carefully
+2. Fix all issues identified
+3. Run tests again
+4. Re-run the QA agent
+5. Repeat until QA approves
+
+Do NOT proceed to commit until QA has approved the implementation.
 
 ### 5. Mark Complete
 
-When feature is done and QA passes:
+When feature is done, tests pass, and **QA has approved**:
 
 1. Rename the feature file:
    ```bash
@@ -118,7 +125,7 @@ When feature is done and QA passes:
 
 ### 6. Exit
 
-**ONLY after completing a feature**, exit by running:
+**ONLY after QA has approved and the feature is marked complete**, exit by running:
 
 ```bash
 .claude/ralph/bin/kill-claude
@@ -151,6 +158,8 @@ The loop will restart you with fresh context.
 - Exit without committing your work
 - Add comments to code
 - Create documentation files unless explicitly asked
+- Mark a feature complete without QA approval
+- Skip QA or proceed after QA failure without fixing issues
 - **NEVER call the exit script when blocked or confused - use AskUserQuestion instead**
 
 ## If Blocked
