@@ -1,2 +1,5 @@
-- Remove the Timeouts in tests.
+- Use ruby TCPSocket instead of directly Socket to simplify and improve readability
 - Simplify the interface.
+- debug/verbose mode
+- Remove the Timeouts in tests.
+- what happens if the connection is killed?
