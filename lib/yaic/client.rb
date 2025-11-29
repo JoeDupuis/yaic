@@ -24,14 +24,14 @@ module Yaic
       "&" => :admin
     }.freeze
 
-    attr_reader :state, :isupport, :last_received_at, :channels
+    attr_reader :state, :isupport, :last_received_at, :channels, :server
 
-    def initialize(host:, port:, nick: nil, user: nil, realname: nil, password: nil, ssl: false)
-      @host = host
+    def initialize(port:, host: nil, nick: nil, user: nil, realname: nil, password: nil, ssl: false, server: nil, nickname: nil, username: nil)
+      @server = server || host
       @port = port
-      @nick = nick
-      @user = user || nick
-      @realname = realname || nick
+      @nick = nickname || nick
+      @user = username || user || @nick
+      @realname = realname || @nick
       @password = password
       @ssl = ssl
 
@@ -47,9 +47,13 @@ module Yaic
     end
 
     def connect
-      @socket ||= Socket.new(@host, @port, ssl: @ssl)
+      @socket ||= Socket.new(@server, @port, ssl: @ssl)
       @socket.connect
       @state = :connecting
+    end
+
+    def connected?
+      @state == :connected
     end
 
     def disconnect

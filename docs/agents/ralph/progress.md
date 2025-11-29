@@ -10,7 +10,7 @@
 
 ## Current State
 
-Features 01-14 complete. Ready for `15-client-api.md`.
+Features 01-15 complete. All planned features implemented!
 
 ## Feature Order
 
@@ -30,7 +30,7 @@ Features should be implemented in this order (dependencies noted):
 12. ~~`12-names.md`~~ ✅ - Depends on 07
 13. ~~`13-mode.md`~~ ✅ - Depends on 07
 14. ~~`14-who-whois.md`~~ ✅ - Depends on 01, 05
-15. `15-client-api.md` - Depends on ALL (final integration)
+15. ~~`15-client-api.md`~~ ✅ - Depends on ALL (final integration)
 
 ---
 
@@ -357,8 +357,53 @@ Features should be implemented in this order (dependencies noted):
 - `:whois` event emitted after ENDOFWHOIS with `result:` (WhoisResult or nil if not found)
 - WhoisResult attributes: nick, user, host, realname, channels (Array), server, idle, signon (Time), account, away
 
+### Session 2025-11-28 (15)
+
+**Feature**: 15-client-api
+**Status**: Completed
+
+**What was done**:
+- Added `connected?` method that returns true when state is :connected
+- Added `server` getter as attr_reader
+- Added parameter aliases in Client#initialize:
+  - `server:` (alias for `host:`)
+  - `nickname:` (alias for `nick:`)
+  - `username:` (alias for `user:`)
+- Default handling: username and realname default to nickname if not provided
+- Connection errors bubble up naturally from Socket (Errno::ECONNREFUSED, etc.)
+- Unit tests for new Client API features (17 new tests)
+- Integration tests for full client workflow (6 tests)
+- All tests pass (254 runs, 559 assertions, 3 skips), linter clean, QA passed
+
+**Notes for next session**:
+- All planned features complete!
+- Public API supports both naming conventions:
+  - Original: `host:`, `nick:`, `user:`
+  - New: `server:`, `nickname:`, `username:`
+- `client.connected?` returns boolean state
+- `client.server` returns configured server hostname
+
 ---
 
 ## Suggested Next Feature
 
-Continue with `15-client-api.md` - Final integration feature that depends on ALL previous features.
+All 15 planned features are complete. The library now provides:
+- IRC message parsing and serialization
+- TCP/SSL connection management
+- Registration (NICK, USER, PASS)
+- PING/PONG handling
+- Event system with handlers
+- PRIVMSG/NOTICE
+- JOIN/PART with channel tracking
+- QUIT with disconnect events
+- NICK changes with tracking
+- TOPIC get/set
+- KICK
+- NAMES with user prefix parsing
+- MODE for channels and users
+- WHO/WHOIS queries
+- Client API with convenience methods
+
+Consider:
+- `16-ssl-test-infrastructure.md` for SSL testing
+- Additional features (INVITE, LIST, etc.)

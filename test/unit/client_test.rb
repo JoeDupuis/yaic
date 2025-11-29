@@ -1141,6 +1141,156 @@ class ClientTest < Minitest::Test
     assert_equal 50, channel.modes[:limit]
   end
 
+  def test_default_values_for_username_and_realname
+    client = Yaic::Client.new(server: "irc.example.com", port: 6697, nickname: "mynick")
+
+    assert_equal "irc.example.com", client.server
+    assert_equal "mynick", client.nick
+    assert_equal "mynick", client.instance_variable_get(:@user)
+    assert_equal "mynick", client.instance_variable_get(:@realname)
+  end
+
+  def test_explicit_values_for_username_and_realname
+    client = Yaic::Client.new(
+      server: "irc.example.com",
+      port: 6697,
+      nickname: "mynick",
+      username: "myuser",
+      realname: "My Real Name"
+    )
+
+    assert_equal "irc.example.com", client.server
+    assert_equal "mynick", client.nick
+    assert_equal "myuser", client.instance_variable_get(:@user)
+    assert_equal "My Real Name", client.instance_variable_get(:@realname)
+  end
+
+  def test_host_and_nick_aliases_work
+    client = Yaic::Client.new(host: "irc.example.com", port: 6667, nick: "testnick", user: "testuser")
+
+    assert_equal "irc.example.com", client.server
+    assert_equal "testnick", client.nick
+    assert_equal "testuser", client.instance_variable_get(:@user)
+  end
+
+  def test_server_takes_priority_over_host
+    client = Yaic::Client.new(server: "primary.example.com", host: "backup.example.com", port: 6667, nick: "testnick")
+
+    assert_equal "primary.example.com", client.server
+  end
+
+  def test_nickname_takes_priority_over_nick
+    client = Yaic::Client.new(host: "localhost", port: 6667, nickname: "primary", nick: "backup")
+
+    assert_equal "primary", client.nick
+  end
+
+  def test_username_takes_priority_over_user
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick", username: "primary", user: "backup")
+
+    assert_equal "primary", client.instance_variable_get(:@user)
+  end
+
+  def test_connected_returns_false_when_disconnected
+    client = Yaic::Client.new(host: "localhost", port: 6667)
+    refute client.connected?
+    assert_equal :disconnected, client.state
+  end
+
+  def test_connected_returns_true_when_connected
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    client.instance_variable_set(:@state, :connected)
+
+    assert client.connected?
+  end
+
+  def test_connected_returns_false_when_connecting
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    client.instance_variable_set(:@state, :connecting)
+
+    refute client.connected?
+  end
+
+  def test_connected_returns_false_when_registering
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    client.instance_variable_set(:@state, :registering)
+
+    refute client.connected?
+  end
+
+  def test_connected_returns_false_after_quit
+    mock_socket = MockSocket.new
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    client.instance_variable_set(:@socket, mock_socket)
+    client.instance_variable_set(:@state, :connected)
+
+    client.quit
+
+    refute client.connected?
+  end
+
+  def test_track_nickname_after_nick_change
+    mock_socket = MockSocket.new
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "oldnick")
+    client.instance_variable_set(:@socket, mock_socket)
+    client.instance_variable_set(:@state, :connected)
+
+    message = Yaic::Message.parse(":oldnick!u@h NICK newnick\r\n")
+    client.handle_message(message)
+
+    assert_equal "newnick", client.nick
+  end
+
+  def test_track_channels_after_join
+    mock_socket = MockSocket.new
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    client.instance_variable_set(:@socket, mock_socket)
+    client.instance_variable_set(:@state, :connected)
+
+    message = Yaic::Message.parse(":testnick!user@host JOIN #test\r\n")
+    client.handle_message(message)
+
+    assert client.channels.key?("#test")
+  end
+
+  def test_join_delegates_to_socket
+    mock_socket = MockSocket.new
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    client.instance_variable_set(:@socket, mock_socket)
+    client.instance_variable_set(:@state, :connected)
+
+    client.join("#test")
+
+    assert mock_socket.written.any? { |m| m.include?("JOIN #test") }
+  end
+
+  def test_privmsg_delegates_to_socket
+    mock_socket = MockSocket.new
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    client.instance_variable_set(:@socket, mock_socket)
+    client.instance_variable_set(:@state, :connected)
+
+    client.privmsg("#test", "Hello")
+
+    assert mock_socket.written.any? { |m| m.include?("PRIVMSG #test :Hello") }
+  end
+
+  def test_error_numeric_triggers_error_event_with_numeric_and_message
+    mock_socket = MockSocket.new
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    client.instance_variable_set(:@socket, mock_socket)
+
+    received_event = nil
+    client.on(:error) { |event| received_event = event }
+
+    message = Yaic::Message.parse(":server.example.com 433 * testnick :Nickname in use\r\n")
+    client.handle_message(message)
+
+    assert_equal :error, received_event.type
+    assert_equal 433, received_event.numeric
+    assert_equal "Nickname in use", received_event.message
+  end
+
   class MockSocket
     attr_accessor :connect_response
     attr_reader :written
