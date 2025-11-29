@@ -4,6 +4,6 @@ cat << 'JSON'
 {
   "decision": "block",
   "continue": true,
-  "reason": "You cannot exit until you have COMPLETED a feature. If you have completed a feature (tests pass, QA passed, feature marked .done), exit by calling .claude/ralph/bin/kill-claude. If you are blocked, confused, or need clarification, DO NOT EXIT - use the AskUserQuestion tool and wait for a response."
+  "reason": "If you are blocked, confused, or need clarification, DO NOT EXIT OR STOP WORKING - use the AskUserQuestion tool and wait for a response. You cannot exit or stop until you have COMPLETED a feature or the user quit for you. If you have completed a feature (tests pass, QA passed, feature marked .done), exit by calling .claude/ralph/bin/kill-claude."
 }
 JSON

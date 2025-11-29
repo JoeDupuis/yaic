@@ -17,11 +17,9 @@ elif [ ! -f "$PROMPT_FILE" ]; then
 fi
 
 touch "$CONTROL_FILE"
-START_TIME=$(stat -f %m "$CONTROL_FILE" 2>/dev/null || stat -c %Y "$CONTROL_FILE")
 
 while true; do
-    CURRENT_TIME=$(stat -f %m "$CONTROL_FILE" 2>/dev/null || stat -c %Y "$CONTROL_FILE")
-    if [ "$CURRENT_TIME" != "$START_TIME" ]; then
+    if [ ! -f "$CONTROL_FILE" ]; then
         echo "Loop stop requested. Exiting."
         exit 0
     fi
