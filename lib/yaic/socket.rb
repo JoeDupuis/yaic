@@ -21,30 +21,10 @@ module Yaic
     end
 
     def connect
-      addrinfo = resolve_address
-      tcp_socket = ::Socket.new(addrinfo.afamily, ::Socket::SOCK_STREAM)
+      tcp_socket = TCPSocket.new(@host, @port, connect_timeout: @connect_timeout)
       tcp_socket.setsockopt(::Socket::SOL_SOCKET, ::Socket::SO_KEEPALIVE, true)
 
-      begin
-        tcp_socket.connect_nonblock(addrinfo)
-      rescue IO::WaitWritable
-        if IO.select(nil, [tcp_socket], nil, @connect_timeout)
-          begin
-            tcp_socket.connect_nonblock(addrinfo)
-          rescue Errno::EISCONN
-          end
-        else
-          tcp_socket.close
-          raise Errno::ETIMEDOUT, "Connection timed out"
-        end
-      end
-
-      @socket = if @ssl
-        wrap_ssl(tcp_socket)
-      else
-        tcp_socket
-      end
-
+      @socket = @ssl ? wrap_ssl(tcp_socket) : tcp_socket
       @state = :connecting
     end
 
@@ -91,12 +71,6 @@ module Yaic
     end
 
     private
-
-    def resolve_address
-      addrs = Addrinfo.getaddrinfo(@host, @port, nil, :STREAM)
-      ipv4 = addrs.find { |a| a.afamily == ::Socket::AF_INET }
-      ipv4 || addrs.first
-    end
 
     def wrap_ssl(tcp_socket)
       context = OpenSSL::SSL::SSLContext.new

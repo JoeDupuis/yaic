@@ -100,6 +100,23 @@ class SocketIntegrationTest < Minitest::Test
     end
   end
 
+  def test_dns_resolution_failure
+    socket = Yaic::Socket.new("this.host.does.not.exist.invalid", 6667, ssl: false)
+    assert_raises(SocketError) do
+      socket.connect
+    end
+  end
+
+  def test_keepalive_option_set
+    socket = Yaic::Socket.new("localhost", 6667, ssl: false)
+    socket.connect
+    tcp_socket = socket.instance_variable_get(:@socket)
+    keepalive = tcp_socket.getsockopt(::Socket::SOL_SOCKET, ::Socket::SO_KEEPALIVE)
+    assert keepalive.bool, "SO_KEEPALIVE should be enabled"
+  ensure
+    socket&.disconnect
+  end
+
   def test_read_on_closed_socket
     socket = Yaic::Socket.new("localhost", 6667, ssl: false)
     socket.connect

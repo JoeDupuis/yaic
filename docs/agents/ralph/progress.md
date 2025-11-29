@@ -468,11 +468,34 @@ All 16 planned features are complete. The library now provides:
 - WHO/WHOIS queries
 - Client API with convenience methods
 
+### Session 2025-11-29 (19)
+
+**Feature**: 01-tcpsocket-refactor
+**Status**: Completed
+
+**What was done**:
+- Refactored `lib/yaic/socket.rb` to use `TCPSocket.new` with `connect_timeout:` parameter
+- Removed `resolve_address` method (no longer needed - TCPSocket handles DNS resolution)
+- Removed nonblocking connect logic (`connect_nonblock`, `IO.select`, `IO::WaitWritable`)
+- Preserved keepalive via `setsockopt`
+- Added `test_dns_resolution_failure` integration test (verifies SocketError for bad hostnames)
+- Added `test_keepalive_option_set` integration test (verifies SO_KEEPALIVE enabled)
+- All tests pass (258 runs, 566 assertions, 0 failures)
+
+**Notes for next session**:
+- Socket.connect is now much simpler - single TCPSocket.new call
+- IPv4 preference logic removed (TCPSocket uses system resolver order)
+- Next feature: 02-simplified-client-api.md (depends on this feature)
+
+---
+
 ## New Feature Queue
 
 | Feature | Status | Description |
 |---------|--------|-------------|
-| 17-github-actions-ci.md | ✅ complete | Tests on Ruby 3.2 + 3.4, separate lint job |
-| 18-brakeman-security-scanning.md | ✅ complete | Security scanning with Brakeman |
+| 01-tcpsocket-refactor.md | ✅ complete | Replace low-level Socket with TCPSocket |
+| 02-simplified-client-api.md | pending | Blocking API, background read loop |
 
-All features complete.
+## Suggested Next Feature
+
+`02-simplified-client-api.md` - Depends on TCPSocket refactor (now complete).
