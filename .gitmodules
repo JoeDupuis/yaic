@@ -1,0 +1,3 @@
+[submodule "docs/agents/rfc/modern-irc"]
+	path = docs/agents/rfc/modern-irc
+	url = https://github.com/ircdocs/modern-irc.git
