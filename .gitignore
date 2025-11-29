@@ -18,3 +18,4 @@ devenv.local.nix
 
 .claude/ralph/pid
 .claude/ralph/uuid
+.claude/ralph/loop-control
