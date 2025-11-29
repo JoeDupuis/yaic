@@ -10,7 +10,7 @@
 
 ## Current State
 
-Features 01-08 complete. Ready for `09-nick-change.md`.
+Features 01-09 complete. Ready for `10-topic.md`.
 
 ## Feature Order
 
@@ -24,7 +24,7 @@ Features should be implemented in this order (dependencies noted):
 6. ~~`06-privmsg-notice.md`~~ ✅ - Depends on 01-05
 7. ~~`07-join-part.md`~~ ✅ - Depends on 01-05
 8. ~~`08-quit.md`~~ ✅ - Depends on 01, 02, 05
-9. `09-nick-change.md` - Depends on 01, 02, 03, 05
+9. ~~`09-nick-change.md`~~ ✅ - Depends on 01, 02, 03, 05
 10. `10-topic.md` - Depends on 07
 11. `11-kick.md` - Depends on 07
 12. `12-names.md` - Depends on 07
@@ -222,8 +222,29 @@ Features should be implemented in this order (dependencies noted):
 - `:disconnect` event now implemented (emitted after quit)
 - QUIT reason may be nil if server doesn't include one
 
+### Session 2025-11-28 (9)
+
+**Feature**: 09-nick-change
+**Status**: Completed
+
+**What was done**:
+- Added `client.nick(new_nick)` method for changing nickname (sends `NICK new_nick\r\n`)
+- Modified `nick` to work as both getter (no arg) and setter (with arg) - removed from attr_reader
+- Added `handle_nick(message)` to update internal nick when self changes nick
+- Added channel user list updates when any user changes nick (iterates all channels)
+- Fixed `handle_err_nicknameinuse` to only auto-retry during registration (not when connected)
+- Unit tests for NICK formatting, event parsing, own nick tracking, channel user tracking (5 new tests)
+- Integration tests for nick change, nick in use, invalid nick, other user changes nick (4 tests)
+- All tests pass (148 runs, 293 assertions, 2 SSL skips), linter clean, QA passed
+
+**Notes for next session**:
+- Public interface: `client.nick` (getter), `client.nick("new")` (setter)
+- `:nick` event emitted with `old_nick`, `new_nick` attributes
+- Channel user tracking updates across all channels when nick changes
+- 433 (nick in use) only auto-retries during registration state
+
 ---
 
 ## Suggested Next Feature
 
-Continue with `09-nick-change.md` - Implements NICK command for changing nickname.
+Continue with `10-topic.md` - Implements TOPIC command for getting/setting channel topics.

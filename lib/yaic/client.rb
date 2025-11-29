@@ -16,7 +16,7 @@ module Yaic
       "MODE" => :mode
     }.freeze
 
-    attr_reader :state, :nick, :isupport, :last_received_at, :channels
+    attr_reader :state, :isupport, :last_received_at, :channels
 
     def initialize(host:, port:, nick: nil, user: nil, realname: nil, password: nil, ssl: false)
       @host = host
@@ -68,6 +68,8 @@ module Yaic
         handle_join(message)
       when "PART"
         handle_part(message)
+      when "NICK"
+        handle_nick(message)
       end
 
       emit_events(message)
@@ -123,6 +125,13 @@ module Yaic
       emit(:disconnect, nil)
     end
 
+    def nick(new_nick = nil)
+      return @nick if new_nick.nil?
+
+      message = Message.new(command: "NICK", params: [new_nick])
+      @socket.write(message.to_s)
+    end
+
     private
 
     def send_registration
@@ -152,6 +161,8 @@ module Yaic
     end
 
     def handle_err_nicknameinuse(_message)
+      return unless @state == :registering
+
       @nick_attempts += 1
       new_nick = "#{@nick.sub(/_+$/, "")}#{"_" * @nick_attempts}"
       @nick = new_nick
@@ -181,6 +192,23 @@ module Yaic
 
       if parter_nick == @nick
         @channels.delete(channel_name)
+      end
+    end
+
+    def handle_nick(message)
+      old_nick = message.source&.nick
+      new_nick = message.params[0]
+      return unless old_nick && new_nick
+
+      if old_nick == @nick
+        @nick = new_nick
+      end
+
+      @channels.each_value do |channel|
+        if channel.users.key?(old_nick)
+          user_data = channel.users.delete(old_nick)
+          channel.users[new_nick] = user_data
+        end
       end
     end
 

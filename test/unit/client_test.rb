@@ -682,6 +682,86 @@ class ClientTest < Minitest::Test
     assert_equal :disconnect, disconnect_event.type
   end
 
+  def test_nick_formats_correctly
+    mock_socket = MockSocket.new
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    client.instance_variable_set(:@socket, mock_socket)
+    client.instance_variable_set(:@state, :connected)
+
+    client.nick("newnick")
+
+    assert_equal "NICK newnick\r\n", mock_socket.written.last
+  end
+
+  def test_parse_nick_event
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    received_event = nil
+    client.on(:nick) { |event| received_event = event }
+
+    message = Yaic::Message.parse(":old!u@h NICK new\r\n")
+    client.handle_message(message)
+
+    assert_equal :nick, received_event.type
+    assert_equal "old", received_event.old_nick
+    assert_equal "new", received_event.new_nick
+  end
+
+  def test_track_own_nick_change
+    mock_socket = MockSocket.new
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "oldnick")
+    client.instance_variable_set(:@socket, mock_socket)
+    client.instance_variable_set(:@state, :connected)
+
+    assert_equal "oldnick", client.nick
+
+    message = Yaic::Message.parse(":oldnick!u@h NICK newnick\r\n")
+    client.handle_message(message)
+
+    assert_equal "newnick", client.nick
+  end
+
+  def test_update_user_in_channels_on_nick_change
+    mock_socket = MockSocket.new
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    client.instance_variable_set(:@socket, mock_socket)
+    client.instance_variable_set(:@state, :connected)
+
+    join_message = Yaic::Message.parse(":testnick!user@host JOIN #test\r\n")
+    client.handle_message(join_message)
+
+    channel = client.channels["#test"]
+    channel.users["bob"] = {}
+
+    nick_message = Yaic::Message.parse(":bob!u@h NICK robert\r\n")
+    client.handle_message(nick_message)
+
+    refute channel.users.key?("bob")
+    assert channel.users.key?("robert")
+  end
+
+  def test_nick_change_updates_multiple_channels
+    mock_socket = MockSocket.new
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    client.instance_variable_set(:@socket, mock_socket)
+    client.instance_variable_set(:@state, :connected)
+
+    join_message1 = Yaic::Message.parse(":testnick!user@host JOIN #test1\r\n")
+    client.handle_message(join_message1)
+    join_message2 = Yaic::Message.parse(":testnick!user@host JOIN #test2\r\n")
+    client.handle_message(join_message2)
+
+    client.channels["#test1"].users["alice"] = {}
+    client.channels["#test2"].users["alice"] = {}
+
+    nick_message = Yaic::Message.parse(":alice!u@h NICK alicia\r\n")
+    client.handle_message(nick_message)
+
+    refute client.channels["#test1"].users.key?("alice")
+    assert client.channels["#test1"].users.key?("alicia")
+    refute client.channels["#test2"].users.key?("alice")
+    assert client.channels["#test2"].users.key?("alicia")
+  end
+
   class MockSocket
     attr_accessor :connect_response
     attr_reader :written
