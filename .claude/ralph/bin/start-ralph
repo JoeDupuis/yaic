@@ -18,11 +18,7 @@ fi
 
 touch "$CONTROL_FILE"
 
-while true; do
-    if [ ! -f "$CONTROL_FILE" ]; then
-        echo "Loop stop requested. Exiting."
-        exit 0
-    fi
+while [ -f "$CONTROL_FILE" ]; do
 
     if [ -n "$PROMPT_OVERRIDE" ]; then
         PROMPT_CONTENT="$PROMPT_OVERRIDE"
@@ -31,7 +27,7 @@ while true; do
     fi
 
     echo "Starting new session..."
-    RALPH_WIGGUM_LOOP=true claude "$PROMPT_CONTENT" || true
+    RALPH_WIGGUM_LOOP=true claude --permission-mode acceptEdits "$PROMPT_CONTENT" || true
 
     echo ""
     echo "Session ended. Checking if loop should continue..."
