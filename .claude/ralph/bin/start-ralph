@@ -1,13 +1,18 @@
 #!/usr/bin/env bash
 set -e
 
+trap '' TERM HUP
+
+export CLAUDE_PROJECT_DIR="$(pwd)"
 RALPH_DIR=".claude/ralph"
 PROMPT_FILE="$RALPH_DIR/prompt.md"
 CONTROL_FILE="$RALPH_DIR/loop-control"
 
-if [ ! -f "$PROMPT_FILE" ]; then
+if [ -n "$1" ]; then
+    PROMPT_OVERRIDE="$1"
+elif [ ! -f "$PROMPT_FILE" ]; then
     echo "Error: $PROMPT_FILE not found"
-    echo "Run the spec-builder first to generate the prompt file."
+    echo "Usage: start-ralph [prompt]"
     exit 1
 fi
 
@@ -21,7 +26,11 @@ while true; do
         exit 0
     fi
 
-    PROMPT_CONTENT=$(cat "$PROMPT_FILE")
+    if [ -n "$PROMPT_OVERRIDE" ]; then
+        PROMPT_CONTENT="$PROMPT_OVERRIDE"
+    else
+        PROMPT_CONTENT=$(cat "$PROMPT_FILE")
+    fi
 
     echo "Starting new session..."
     RALPH_WIGGUM_LOOP=true claude "$PROMPT_CONTENT" || true
