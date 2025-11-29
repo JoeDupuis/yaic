@@ -111,7 +111,7 @@ When feature is done and QA passes:
 3. Commit your changes:
    ```bash
    git add -A
-   git commit -m "Implement [feature-name]"
+   git commit --no-gpg-sign -m "Implement [feature-name]"
    ```
 
 **CRITICAL: Always commit before exiting. Never exit without committing your work.**
