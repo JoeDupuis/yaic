@@ -10,7 +10,7 @@
 
 ## Current State
 
-Features 01-16 complete. All planned features implemented!
+Features 01-17 complete. CI now runs on push to main and PRs.
 
 ## Feature Order
 
@@ -407,6 +407,28 @@ Features should be implemented in this order (dependencies noted):
 - Uses GnuTLS module (not OpenSSL) as that's what the inspircd Docker image provides
 - To run tests with SSL, restart server with `bin/stop-irc-server && bin/start-irc-server`
 
+### Session 2025-11-29 (17)
+
+**Feature**: 17-github-actions-ci
+**Status**: Completed
+
+**What was done**:
+- Updated `.github/workflows/main.yml`:
+  - Changed trigger from `master` to `main`
+  - Added separate `lint` job running `bundle exec standardrb` (Ruby 3.4)
+  - Added `test` job with matrix for Ruby 3.2 and 3.4
+  - Changed test command to `bundle exec rake test_unit` (unit tests only)
+- Updated `Rakefile`:
+  - Added `test_unit` rake task for unit tests only
+  - Added `test_integration` rake task for integration tests
+- Added `.gitmodules` to fix broken submodule reference for `docs/agents/rfc/modern-irc`
+- CI run 19780741633 passed (Lint ✓, Ruby 3.2 ✓, Ruby 3.4 ✓)
+
+**Notes for next session**:
+- Integration tests require IRC server, so CI only runs unit tests
+- Use `bundle exec rake test_unit` for unit tests, `bundle exec rake test_integration` for integration tests
+- Full test suite still available via `bundle exec rake test` locally
+
 ---
 
 ## Suggested Next Feature
@@ -428,6 +450,11 @@ All 16 planned features are complete. The library now provides:
 - WHO/WHOIS queries
 - Client API with convenience methods
 
-Consider:
-- `16-ssl-test-infrastructure.md` for SSL testing
-- Additional features (INVITE, LIST, etc.)
+## New Feature Queue
+
+| Feature | Status | Description |
+|---------|--------|-------------|
+| 17-github-actions-ci.md | ✅ complete | Tests on Ruby 3.2 + 3.4, separate lint job |
+| 18-brakeman-security-scanning.md | pending | Security scanning with Brakeman |
+
+Start with `18-brakeman-security-scanning.md` - Adds security scanning to CI.

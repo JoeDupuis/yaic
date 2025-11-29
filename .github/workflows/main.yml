@@ -41,5 +41,17 @@ jobs:
         with:
           ruby-version: ${{ matrix.ruby }}
           bundler-cache: true
-      - name: Run unit tests
-        run: bundle exec rake test_unit
+      - name: Start IRC server
+        run: |
+          docker run -d --name inspircd \
+            -p 6667:6667 -p 6697:6697 \
+            -v ${{ github.workspace }}/test/fixtures/inspircd.conf:/inspircd/conf/inspircd.conf:ro \
+            -v ${{ github.workspace }}/test/fixtures/ssl:/inspircd/conf/ssl:ro \
+            inspircd/inspircd-docker
+          sleep 3
+          nc -z localhost 6667
+      - name: Run tests
+        run: bundle exec rake test
+      - name: Stop IRC server
+        if: always()
+        run: docker stop inspircd || true

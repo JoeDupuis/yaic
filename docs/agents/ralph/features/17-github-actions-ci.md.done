@@ -1,0 +1,70 @@
+# GitHub Actions CI
+
+## Description
+
+Set up GitHub Actions to run tests and linting on pull requests and pushes to the main branch. Tests run on Ruby 3.2 and 3.4 (bottom and top of current EOL lifecycle). Linting runs as a separate job.
+
+## Behavior
+
+### Workflow Triggers
+
+The workflow runs on:
+- Push to `main` branch
+- All pull requests
+
+### Jobs
+
+**1. Lint Job**
+- Runs `bundle exec standardrb` (or `bundle exec rake standard`)
+- Single job, not matrixed
+- Fails fast if code doesn't pass linting
+
+**2. Test Job**
+- Matrix: Ruby 3.2 and Ruby 3.4
+- Runs `bundle exec rake test`
+- Uses `ruby/setup-ruby@v1` with `bundler-cache: true`
+
+### Workflow File
+
+Located at `.github/workflows/main.yml` (update existing file).
+
+## Implementation Notes
+
+- The existing workflow triggers on `master` which doesn't exist - change to `main`
+- Current workflow only tests Ruby 3.4.1 - expand to matrix with 3.2 and 3.4
+- Split lint into its own job so it fails fast and doesn't duplicate across matrix
+- Use `actions/checkout@v4` with `persist-credentials: false`
+
+## Tests
+
+This feature has no unit tests. Verification is done by:
+
+1. Push the workflow changes to a branch
+2. Open a PR or push to main
+3. Verify CI runs successfully using `gh run list` and `gh run view`
+4. All jobs (lint, test on 3.2, test on 3.4) must pass
+
+### Verification Commands
+
+```bash
+# Check recent workflow runs
+gh run list --limit 5
+
+# View specific run details
+gh run view <run-id>
+
+# Check if latest run on current branch passed
+gh run list --branch $(git branch --show-current) --limit 1
+```
+
+## Completion Criteria
+
+- [ ] `.github/workflows/main.yml` updated with correct configuration
+- [ ] Workflow triggers on `main` branch (not `master`)
+- [ ] Lint job runs separately
+- [ ] Test matrix includes Ruby 3.2 and 3.4
+- [ ] CI run passes (verified via `gh run list` showing success)
+
+## Dependencies
+
+None - this is the first feature.
