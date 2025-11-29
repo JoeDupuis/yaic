@@ -591,6 +591,97 @@ class ClientTest < Minitest::Test
     assert client.channels.key?("#test")
   end
 
+  def test_quit_formats_correctly_without_reason
+    mock_socket = MockSocket.new
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    client.instance_variable_set(:@socket, mock_socket)
+    client.instance_variable_set(:@state, :connected)
+
+    client.quit
+
+    assert_equal "QUIT\r\n", mock_socket.written.last
+  end
+
+  def test_quit_formats_correctly_with_reason
+    mock_socket = MockSocket.new
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    client.instance_variable_set(:@socket, mock_socket)
+    client.instance_variable_set(:@state, :connected)
+
+    client.quit("Going away")
+
+    assert_equal "QUIT :Going away\r\n", mock_socket.written.last
+  end
+
+  def test_parse_quit_event
+    client = Yaic::Client.new(host: "localhost", port: 6667)
+    received_event = nil
+    client.on(:quit) { |event| received_event = event }
+
+    message = Yaic::Message.parse(":nick!u@h QUIT :Quit: Leaving\r\n")
+    client.handle_message(message)
+
+    assert_equal :quit, received_event.type
+    assert_equal "nick", received_event.user.nick
+    assert_equal "Quit: Leaving", received_event.reason
+  end
+
+  def test_parse_netsplit_quit
+    client = Yaic::Client.new(host: "localhost", port: 6667)
+    received_event = nil
+    client.on(:quit) { |event| received_event = event }
+
+    message = Yaic::Message.parse(":nick!u@h QUIT :hub.net leaf.net\r\n")
+    client.handle_message(message)
+
+    assert_equal :quit, received_event.type
+    assert_equal "hub.net leaf.net", received_event.reason
+  end
+
+  def test_state_after_quit
+    mock_socket = MockSocket.new
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    client.instance_variable_set(:@socket, mock_socket)
+    client.instance_variable_set(:@state, :connected)
+
+    client.quit
+
+    assert_equal :disconnected, client.state
+  end
+
+  def test_channels_cleared_after_quit
+    mock_socket = MockSocket.new
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    client.instance_variable_set(:@socket, mock_socket)
+    client.instance_variable_set(:@state, :connected)
+
+    join_message1 = Yaic::Message.parse(":testnick!user@host JOIN #test1\r\n")
+    client.handle_message(join_message1)
+    join_message2 = Yaic::Message.parse(":testnick!user@host JOIN #test2\r\n")
+    client.handle_message(join_message2)
+
+    assert_equal 2, client.channels.size
+
+    client.quit
+
+    assert_equal 0, client.channels.size
+  end
+
+  def test_disconnect_emits_event_after_quit
+    mock_socket = MockSocket.new
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    client.instance_variable_set(:@socket, mock_socket)
+    client.instance_variable_set(:@state, :connected)
+
+    disconnect_event = nil
+    client.on(:disconnect) { |event| disconnect_event = event }
+
+    client.quit
+
+    refute_nil disconnect_event
+    assert_equal :disconnect, disconnect_event.type
+  end
+
   class MockSocket
     attr_accessor :connect_response
     attr_reader :written

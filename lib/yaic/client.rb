@@ -113,6 +113,16 @@ module Yaic
       @socket.write(message.to_s)
     end
 
+    def quit(reason = nil)
+      params = reason ? [reason] : []
+      message = Message.new(command: "QUIT", params: params)
+      @socket.write(message.to_s)
+      @channels.clear
+      @socket&.disconnect
+      @state = :disconnected
+      emit(:disconnect, nil)
+    end
+
     private
 
     def send_registration

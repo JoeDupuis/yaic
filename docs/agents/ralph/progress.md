@@ -10,7 +10,7 @@
 
 ## Current State
 
-Features 01-07 complete. Ready for `08-quit.md`.
+Features 01-08 complete. Ready for `09-nick-change.md`.
 
 ## Feature Order
 
@@ -23,7 +23,7 @@ Features should be implemented in this order (dependencies noted):
 5. ~~`05-event-system.md`~~ ✅ - Depends on 01
 6. ~~`06-privmsg-notice.md`~~ ✅ - Depends on 01-05
 7. ~~`07-join-part.md`~~ ✅ - Depends on 01-05
-8. `08-quit.md` - Depends on 01, 02, 05
+8. ~~`08-quit.md`~~ ✅ - Depends on 01, 02, 05
 9. `09-nick-change.md` - Depends on 01, 02, 03, 05
 10. `10-topic.md` - Depends on 07
 11. `11-kick.md` - Depends on 07
@@ -201,8 +201,29 @@ Features should be implemented in this order (dependencies noted):
 - Channel object: `channel.name`, `channel.topic`, `channel.users`, `channel.modes` (users/modes not yet populated)
 - Server config now uses `defaultmodes="n"` instead of `"nt"` to allow topic setting without +o
 
+### Session 2025-11-28 (8)
+
+**Feature**: 08-quit
+**Status**: Completed
+
+**What was done**:
+- Added `client.quit(reason = nil)` method for gracefully disconnecting from server
+- Sends `QUIT\r\n` (no reason) or `QUIT :reason\r\n` (with reason)
+- Clears all tracked channels after quit
+- Sets state to `:disconnected`
+- Emits `:disconnect` event after quit
+- Parses QUIT events from other users with `user` and `reason` attributes
+- Unit tests for QUIT formatting, event parsing, state changes, channel cleanup (7 new tests)
+- Integration tests for quit without/with reason, receiving other user quit, netsplit detection (4 tests)
+- All tests pass (138 runs, 271 assertions, 2 SSL skips), linter clean, QA passed
+
+**Notes for next session**:
+- Public interface additions: `client.quit(reason = nil)`
+- `:disconnect` event now implemented (emitted after quit)
+- QUIT reason may be nil if server doesn't include one
+
 ---
 
 ## Suggested Next Feature
 
-Continue with `08-quit.md` - Implements QUIT command for disconnecting from server.
+Continue with `09-nick-change.md` - Implements NICK command for changing nickname.
