@@ -70,6 +70,8 @@ module Yaic
         handle_part(message)
       when "NICK"
         handle_nick(message)
+      when "KICK"
+        handle_kick(message)
       when "TOPIC"
         handle_topic(message)
       when "332"
@@ -141,6 +143,12 @@ module Yaic
     def topic(channel, new_topic = nil)
       params = new_topic.nil? ? [channel] : [channel, new_topic]
       message = Message.new(command: "TOPIC", params: params)
+      @socket.write(message.to_s)
+    end
+
+    def kick(channel, nick, reason = nil)
+      params = reason ? [channel, nick, reason] : [channel, nick]
+      message = Message.new(command: "KICK", params: params)
       @socket.write(message.to_s)
     end
 
@@ -221,6 +229,19 @@ module Yaic
           user_data = channel.users.delete(old_nick)
           channel.users[new_nick] = user_data
         end
+      end
+    end
+
+    def handle_kick(message)
+      channel_name = message.params[0]
+      kicked_nick = message.params[1]
+      return unless channel_name && kicked_nick
+
+      if kicked_nick == @nick
+        @channels.delete(channel_name)
+      else
+        channel = @channels[channel_name]
+        channel&.users&.delete(kicked_nick)
       end
     end
 

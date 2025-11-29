@@ -879,6 +879,77 @@ class ClientTest < Minitest::Test
     assert_equal "Welcome topic", channel.topic
   end
 
+  def test_kick_formats_correctly
+    mock_socket = MockSocket.new
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    client.instance_variable_set(:@socket, mock_socket)
+    client.instance_variable_set(:@state, :connected)
+
+    client.kick("#test", "target")
+
+    assert_equal "KICK #test :target\r\n", mock_socket.written.last
+  end
+
+  def test_kick_with_reason_formats_correctly
+    mock_socket = MockSocket.new
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    client.instance_variable_set(:@socket, mock_socket)
+    client.instance_variable_set(:@state, :connected)
+
+    client.kick("#test", "target", "Bye")
+
+    assert_equal "KICK #test target :Bye\r\n", mock_socket.written.last
+  end
+
+  def test_parse_kick_event
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    received_event = nil
+    client.on(:kick) { |event| received_event = event }
+
+    message = Yaic::Message.parse(":op!u@h KICK #test target :reason\r\n")
+    client.handle_message(message)
+
+    assert_equal :kick, received_event.type
+    assert_equal "#test", received_event.channel
+    assert_equal "target", received_event.user
+    assert_equal "op", received_event.by.nick
+    assert_equal "reason", received_event.reason
+  end
+
+  def test_remove_kicked_user_from_channel
+    mock_socket = MockSocket.new
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    client.instance_variable_set(:@socket, mock_socket)
+    client.instance_variable_set(:@state, :connected)
+
+    join_message = Yaic::Message.parse(":testnick!user@host JOIN #test\r\n")
+    client.handle_message(join_message)
+
+    channel = client.channels["#test"]
+    channel.users["target"] = {}
+
+    kick_message = Yaic::Message.parse(":op!u@h KICK #test target :reason\r\n")
+    client.handle_message(kick_message)
+
+    refute channel.users.key?("target")
+  end
+
+  def test_remove_channel_when_self_kicked
+    mock_socket = MockSocket.new
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    client.instance_variable_set(:@socket, mock_socket)
+    client.instance_variable_set(:@state, :connected)
+
+    join_message = Yaic::Message.parse(":testnick!user@host JOIN #test\r\n")
+    client.handle_message(join_message)
+    assert client.channels.key?("#test")
+
+    kick_message = Yaic::Message.parse(":op!u@h KICK #test testnick :reason\r\n")
+    client.handle_message(kick_message)
+
+    refute client.channels.key?("#test")
+  end
+
   class MockSocket
     attr_accessor :connect_response
     attr_reader :written

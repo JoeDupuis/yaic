@@ -10,7 +10,7 @@
 
 ## Current State
 
-Features 01-10 complete. Ready for `11-kick.md`.
+Features 01-11 complete. Ready for `12-names.md`.
 
 ## Feature Order
 
@@ -26,7 +26,7 @@ Features should be implemented in this order (dependencies noted):
 8. ~~`08-quit.md`~~ ✅ - Depends on 01, 02, 05
 9. ~~`09-nick-change.md`~~ ✅ - Depends on 01, 02, 03, 05
 10. ~~`10-topic.md`~~ ✅ - Depends on 07
-11. `11-kick.md` - Depends on 07
+11. ~~`11-kick.md`~~ ✅ - Depends on 07
 12. `12-names.md` - Depends on 07
 13. `13-mode.md` - Depends on 07
 14. `14-who-whois.md` - Depends on 01, 05
@@ -266,8 +266,29 @@ Features should be implemented in this order (dependencies noted):
 - Message#to_s now always uses trailing prefix for multi-param messages (proper IRC format)
 - InspIRCd 4 limitation: users aren't auto-opped when creating channels, affecting +t mode tests
 
+### Session 2025-11-29 (11)
+
+**Feature**: 11-kick
+**Status**: Completed
+
+**What was done**:
+- Added `client.kick(channel, nick, reason = nil)` method for kicking users from channels
+- Added `handle_kick(message)` to update channel state (remove kicked user from channel, remove channel when self is kicked)
+- Added KICK to handle_message dispatch
+- Updated InspIRCd config to add `samode` module for server operator channel mode control
+- Added `oper` block to InspIRCd config for test authentication
+- Unit tests for KICK formatting and event parsing (6 new tests)
+- Integration tests for kick user, kick with reason, kick without permission, kick non-existent user, receive kick others, receive kick self (6 tests)
+- All tests pass (172 runs, 345 assertions, 3 skips), linter clean, QA passed
+
+**Notes for next session**:
+- Public interface: `client.kick(channel, nick)`, `client.kick(channel, nick, reason)`
+- `:kick` event emitted with `channel`, `user`, `by`, `reason` attributes
+- State tracking: kicked user removed from channel.users, channel removed from client.channels when self is kicked
+- InspIRCd test server now has oper credentials (testoper/testpass) and SAMODE for setting channel ops
+
 ---
 
 ## Suggested Next Feature
 
-Continue with `11-kick.md` - Implements KICK command for removing users from channels.
+Continue with `12-names.md` - Implements NAMES command for getting channel user lists.
