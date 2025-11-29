@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require "test_helper"
-require "timeout"
 
 class ModeIntegrationTest < Minitest::Test
   def setup
@@ -15,291 +14,155 @@ class ModeIntegrationTest < Minitest::Test
 
   def test_get_own_user_modes
     client = create_connected_client(@test_nick)
-    socket = client.instance_variable_get(:@socket)
-
-    drain_messages(socket)
-
-    client.mode(@test_nick)
 
     umode_received = false
+    client.on(:raw) { |event| umode_received = true if event.message&.command == "221" }
 
-    Timeout.timeout(5) do
-      loop do
-        raw = socket.read
-        if raw
-          msg = Yaic::Message.parse(raw)
-          client.handle_message(msg) if msg
-          if msg&.command == "221"
-            umode_received = true
-            break
-          end
-        end
-        sleep 0.01
-      end
-    end
+    client.mode(@test_nick)
+    sleep 0.5
 
     assert umode_received, "Should receive 221 RPL_UMODEIS"
   ensure
-    client&.disconnect
+    client&.quit
   end
 
   def test_set_invisible_mode
     client = create_connected_client(@test_nick)
-    socket = client.instance_variable_get(:@socket)
-
-    drain_messages(socket)
-
-    client.mode(@test_nick, "+i")
 
     mode_confirmed = false
-
-    Timeout.timeout(5) do
-      loop do
-        raw = socket.read
-        if raw
-          msg = Yaic::Message.parse(raw)
-          client.handle_message(msg) if msg
-          if msg&.command == "MODE" && msg.params.include?("+i")
-            mode_confirmed = true
-            break
-          end
-        end
-        sleep 0.01
-      end
+    client.on(:raw) do |event|
+      msg = event.message
+      mode_confirmed = true if msg&.command == "MODE" && msg.params.include?("+i")
     end
+
+    client.mode(@test_nick, "+i")
+    sleep 0.5
 
     assert mode_confirmed, "Should receive MODE confirmation for +i"
   ensure
-    client&.disconnect
+    client&.quit
   end
 
   def test_cannot_set_other_user_modes
     client1 = create_connected_client(@test_nick)
-    socket1 = client1.instance_variable_get(:@socket)
-
     client2 = create_connected_client(@test_nick2)
-    client2.instance_variable_get(:@socket)
-
-    drain_messages(socket1)
-
-    client1.mode(@test_nick2, "+i")
 
     error_received = false
+    client1.on(:raw) { |event| error_received = true if event.message&.command == "502" }
 
-    Timeout.timeout(5) do
-      loop do
-        raw = socket1.read
-        if raw
-          msg = Yaic::Message.parse(raw)
-          client1.handle_message(msg) if msg
-          if msg&.command == "502"
-            error_received = true
-            break
-          end
-        end
-        sleep 0.01
-      end
-    end
+    client1.mode(@test_nick2, "+i")
+    sleep 0.5
 
     assert error_received, "Should receive 502 ERR_USERSDONTMATCH"
   ensure
-    client1&.disconnect
-    client2&.disconnect
+    client1&.quit
+    client2&.quit
   end
 
   def test_get_channel_modes
     client = create_connected_client(@test_nick)
-    socket = client.instance_variable_get(:@socket)
-
     client.join(@test_channel)
-    wait_for_join(client, socket, @test_channel)
-
-    drain_messages(socket)
-
-    client.mode(@test_channel)
 
     mode_received = false
+    client.on(:raw) { |event| mode_received = true if event.message&.command == "324" }
 
-    Timeout.timeout(5) do
-      loop do
-        raw = socket.read
-        if raw
-          msg = Yaic::Message.parse(raw)
-          client.handle_message(msg) if msg
-          if msg&.command == "324"
-            mode_received = true
-            break
-          end
-        end
-        sleep 0.01
-      end
-    end
+    client.mode(@test_channel)
+    sleep 0.5
 
     assert mode_received, "Should receive 324 RPL_CHANNELMODEIS"
   ensure
-    socket&.write("PART #{@test_channel}")
-    client&.disconnect
+    client&.quit
   end
 
   def test_set_channel_mode_as_op
     client = create_connected_client(@test_nick)
     socket = client.instance_variable_get(:@socket)
 
-    become_oper(socket)
-
+    become_oper(client, socket)
     client.join(@test_channel)
-    wait_for_join(client, socket, @test_channel)
 
     socket.write("SAMODE #{@test_channel} +o #{@test_nick}")
-    wait_for_mode(socket, @test_channel)
-
-    drain_messages(socket)
-
-    client.mode(@test_channel, "+m")
+    sleep 0.5
 
     mode_confirmed = false
-
-    Timeout.timeout(5) do
-      loop do
-        raw = socket.read
-        if raw
-          msg = Yaic::Message.parse(raw)
-          client.handle_message(msg) if msg
-          if msg&.command == "MODE" && msg.params.include?("+m")
-            mode_confirmed = true
-            break
-          end
-        end
-        sleep 0.01
-      end
+    client.on(:raw) do |event|
+      msg = event.message
+      mode_confirmed = true if msg&.command == "MODE" && msg.params.include?("+m")
     end
+
+    client.mode(@test_channel, "+m")
+    sleep 0.5
 
     assert mode_confirmed, "Should receive MODE confirmation for +m"
   ensure
-    socket&.write("PART #{@test_channel}")
-    client&.disconnect
+    client&.quit
   end
 
   def test_give_op_to_user
     client1 = create_connected_client(@test_nick)
     socket1 = client1.instance_variable_get(:@socket)
 
-    become_oper(socket1)
-
+    become_oper(client1, socket1)
     client1.join(@test_channel)
-    wait_for_join(client1, socket1, @test_channel)
 
     socket1.write("SAMODE #{@test_channel} +o #{@test_nick}")
-    wait_for_mode(socket1, @test_channel)
+    sleep 0.5
 
     client2 = create_connected_client(@test_nick2)
-    socket2 = client2.instance_variable_get(:@socket)
-
     client2.join(@test_channel)
-    wait_for_join(client2, socket2, @test_channel)
-
-    drain_messages(socket1)
-    drain_messages(socket2)
-
-    client1.mode(@test_channel, "+o", @test_nick2)
 
     mode_event = nil
     client2.on(:mode) { |event| mode_event = event }
 
-    Timeout.timeout(5) do
-      loop do
-        raw = socket2.read
-        if raw
-          msg = Yaic::Message.parse(raw)
-          client2.handle_message(msg) if msg
-          break if mode_event
-        end
-        sleep 0.01
-      end
-    end
+    client1.mode(@test_channel, "+o", @test_nick2)
+    sleep 0.5
 
     refute_nil mode_event
     assert_equal "+o", mode_event.modes
     assert_equal [@test_nick2], mode_event.args
   ensure
-    socket1&.write("PART #{@test_channel}")
-    socket2&.write("PART #{@test_channel}")
-    client1&.disconnect
-    client2&.disconnect
+    client1&.quit
+    client2&.quit
   end
 
   def test_set_channel_key
     client = create_connected_client(@test_nick)
     socket = client.instance_variable_get(:@socket)
 
-    become_oper(socket)
-
+    become_oper(client, socket)
     client.join(@test_channel)
-    wait_for_join(client, socket, @test_channel)
 
     socket.write("SAMODE #{@test_channel} +o #{@test_nick}")
-    wait_for_mode(socket, @test_channel)
-
-    drain_messages(socket)
-
-    client.mode(@test_channel, "+k", "secret")
+    sleep 0.5
 
     mode_confirmed = false
-
-    Timeout.timeout(5) do
-      loop do
-        raw = socket.read
-        if raw
-          msg = Yaic::Message.parse(raw)
-          client.handle_message(msg) if msg
-          if msg&.command == "MODE" && msg.params.include?("+k")
-            mode_confirmed = true
-            break
-          end
-        end
-        sleep 0.01
-      end
+    client.on(:raw) do |event|
+      msg = event.message
+      mode_confirmed = true if msg&.command == "MODE" && msg.params.include?("+k")
     end
+
+    client.mode(@test_channel, "+k", "secret")
+    sleep 0.5
 
     assert mode_confirmed, "Should receive MODE confirmation for +k"
     assert_equal "secret", client.channels[@test_channel].modes[:key]
   ensure
-    socket&.write("PART #{@test_channel}")
-    client&.disconnect
+    client&.quit
   end
 
   def test_mode_without_permission
     client = create_connected_client(@test_nick)
-    socket = client.instance_variable_get(:@socket)
-
     client.join(@test_channel)
-    wait_for_join(client, socket, @test_channel)
-
-    drain_messages(socket)
-
-    client.mode(@test_channel, "+m")
 
     error_received = false
+    client.on(:raw) { |event| error_received = true if event.message&.command == "482" }
 
-    Timeout.timeout(5) do
-      loop do
-        raw = socket.read
-        if raw
-          msg = Yaic::Message.parse(raw)
-          client.handle_message(msg) if msg
-          if msg&.command == "482"
-            error_received = true
-            break
-          end
-        end
-        sleep 0.01
-      end
-    end
+    client.mode(@test_channel, "+m")
+    sleep 0.5
 
     assert error_received, "Should receive 482 ERR_CHANOPRIVSNEEDED"
   ensure
-    socket&.write("PART #{@test_channel}")
-    client&.disconnect
+    client&.quit
   end
 
   private
@@ -318,74 +181,17 @@ class ModeIntegrationTest < Minitest::Test
       user: "testuser",
       realname: "Test User"
     )
-
     client.connect
-    client.on_socket_connected
-
-    socket = client.instance_variable_get(:@socket)
-    wait_for_connection(client, socket)
-
     client
   end
 
-  def wait_for_connection(client, socket, seconds = 10)
-    Timeout.timeout(seconds) do
-      loop do
-        raw = socket.read
-        if raw
-          msg = Yaic::Message.parse(raw)
-          client.handle_message(msg) if msg
-          break if client.state == :connected
-        end
-        sleep 0.01
-      end
-    end
-  end
-
-  def wait_for_join(client, socket, channel, seconds = 5)
-    joined = false
-    Timeout.timeout(seconds) do
-      loop do
-        raw = socket.read
-        if raw
-          msg = Yaic::Message.parse(raw)
-          client.handle_message(msg) if msg
-          if msg&.command == "JOIN" && msg&.params&.first == channel
-            joined = true
-          end
-          break if msg&.command == "366"
-        end
-        sleep 0.01
-      end
-    end
-    joined
-  end
-
-  def wait_for_mode(socket, channel)
-    Timeout.timeout(5) do
-      loop do
-        raw = socket.read
-        break if raw&.include?("MODE") && raw.include?(channel)
-        sleep 0.01
-      end
-    end
-  end
-
-  def become_oper(socket)
+  def become_oper(client, socket)
+    oper_success = false
+    client.on(:raw) { |event| oper_success = true if event.message&.command == "381" }
     socket.write("OPER testoper testpass")
-    Timeout.timeout(5) do
-      loop do
-        raw = socket.read
-        break if raw&.include?("381")
-        sleep 0.01
-      end
-    end
-  end
-
-  def drain_messages(socket)
-    loop do
-      raw = socket.read
-      break if raw.nil?
+    deadline = Time.now + 5
+    until oper_success || Time.now > deadline
+      sleep 0.05
     end
   end
 end

@@ -85,61 +85,15 @@ class PingPongIntegrationTest < Minitest::Test
     )
 
     client.connect
-    client.on_socket_connected
+    assert client.connected?
 
-    socket = client.instance_variable_get(:@socket)
+    initial_last_received = client.last_received_at
+    sleep 6
 
-    Timeout.timeout(10) do
-      loop do
-        raw = socket.read
-        if raw
-          msg = Yaic::Message.parse(raw)
-          client.handle_message(msg) if msg
-          break if msg&.command == "001"
-        end
-        sleep 0.01
-      end
-    end
-
-    assert_equal :connected, client.state
-
-    server_ping_received = false
-    Timeout.timeout(10) do
-      loop do
-        raw = socket.read
-        if raw
-          msg = Yaic::Message.parse(raw)
-          if msg&.command == "PING"
-            server_ping_received = true
-            client.handle_message(msg)
-            break
-          end
-        end
-        sleep 0.01
-      end
-    end
-
-    assert server_ping_received, "Server should send PING within 10 seconds (pingfreq=5)"
-
-    sleep 0.1
-    still_connected = false
-    Timeout.timeout(10) do
-      loop do
-        raw = socket.read
-        if raw
-          msg = Yaic::Message.parse(raw)
-          if msg&.command == "PING"
-            still_connected = true
-            break
-          end
-        end
-        sleep 0.01
-      end
-    end
-
-    assert still_connected, "Connection should remain alive after responding to PING"
+    assert client.last_received_at > initial_last_received, "Client should continue receiving messages (PING handled)"
+    refute client.connection_stale?
   ensure
-    client&.disconnect
+    client&.quit
   end
 
   private

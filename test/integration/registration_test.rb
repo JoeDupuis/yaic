@@ -12,41 +12,34 @@ class RegistrationIntegrationTest < Minitest::Test
   end
 
   def test_register_with_nickname_and_user
-    socket = Yaic::Socket.new(@host, @port)
-    socket.connect
+    client = Yaic::Client.new(
+      host: @host,
+      port: @port,
+      nick: @test_nick,
+      user: "testuser",
+      realname: "Test User"
+    )
 
-    socket.write("NICK #{@test_nick}")
-    socket.write("USER testuser 0 * :Test User")
-
-    messages = read_until_welcome(socket)
-
-    welcome = messages.find { |m| m.command == "001" }
-    refute_nil welcome, "Should receive RPL_WELCOME (001)"
+    client.connect
+    assert client.connected?
   ensure
-    socket&.disconnect
+    client&.quit
   end
 
   def test_nick_already_in_use
     nick = "dup#{Process.pid}#{rand(1000)}"
 
-    socket1 = Yaic::Socket.new(@host, @port)
-    socket1.connect
-    socket1.write("NICK #{nick}")
-    socket1.write("USER user1 0 * :User One")
-    read_until_welcome(socket1)
+    client1 = Yaic::Client.new(host: @host, port: @port, nick: nick, user: "user1", realname: "User One")
+    client1.connect
 
-    socket2 = Yaic::Socket.new(@host, @port)
-    socket2.connect
-    socket2.write("NICK #{nick}")
-    socket2.write("USER user2 0 * :User Two")
+    client2 = Yaic::Client.new(host: @host, port: @port, nick: nick, user: "user2", realname: "User Two")
+    client2.connect
 
-    messages = read_multiple(socket2, 5)
-
-    nick_in_use = messages.find { |m| m.command == "433" }
-    refute_nil nick_in_use, "Should receive ERR_NICKNAMEINUSE (433)"
+    refute_equal nick, client2.nick
+    assert client2.nick.start_with?(nick)
   ensure
-    socket1&.disconnect
-    socket2&.disconnect
+    client1&.quit
+    client2&.quit
   end
 
   def test_invalid_nickname
@@ -81,25 +74,6 @@ class RegistrationIntegrationTest < Minitest::Test
     TCPSocket.new(@host, 6667).close
   rescue Errno::ECONNREFUSED, Errno::ETIMEDOUT, Errno::EPERM
     flunk "IRC server not running. Start it with: bin/start-irc-server"
-  end
-
-  def read_until_welcome(socket, seconds = 10)
-    messages = []
-    Timeout.timeout(seconds) do
-      loop do
-        raw = socket.read
-        if raw
-          msg = Yaic::Message.parse(raw)
-          if msg
-            messages << msg
-            return messages if msg.command == "001"
-          end
-        end
-        sleep 0.01
-      end
-    end
-  rescue Timeout::Error
-    messages
   end
 
   def read_multiple(socket, seconds)

@@ -494,8 +494,52 @@ All 16 planned features are complete. The library now provides:
 | Feature | Status | Description |
 |---------|--------|-------------|
 | 01-tcpsocket-refactor.md | ✅ complete | Replace low-level Socket with TCPSocket |
-| 02-simplified-client-api.md | pending | Blocking API, background read loop |
+| 02-simplified-client-api.md | ✅ complete | Blocking API, background read loop |
+
+---
+
+### Session 2025-11-29 (20)
+
+**Feature**: 02-simplified-client-api
+**Status**: Completed
+
+**What was done**:
+- Refactored `lib/yaic/client.rb` with blocking API:
+  - `connect` blocks until registered (001 RPL_WELCOME received)
+  - `join(channel)` blocks until channel appears in @channels
+  - `part(channel)` blocks until channel removed from @channels
+  - `nick(new_nick)` blocks until nick change confirmed
+  - `quit` cleans up, stops read thread, disconnects
+- Added background read thread in `start_read_loop` that processes incoming messages
+- Added thread safety: `@handlers_mutex` for on/off, `@channels_mutex` for channel access, `@state_mutex` for state
+- Added `Yaic::TimeoutError` for timeout handling
+- Removed `on_socket_connected` method (no longer needed)
+- Simplified all integration tests to use new blocking API:
+  - Removed all `on_socket_connected` calls
+  - Removed all `wait_for_connection`, `wait_for_join`, `wait_for_part`, `drain_messages` helpers
+  - Tests now simply call `client.connect`, `client.join`, etc. and they block until complete
+- Fixed QA issues:
+  - Fixed `event.raw` to `event.message` in mode tests
+  - Fixed `event.code` to `event.numeric` in kick tests
+  - Fixed race conditions by using event handlers instead of direct socket reads for oper/mode waiting
+- Created comprehensive README.md with Quick Start, Events, Commands, Threading, Channel State sections
+- All unit tests pass (176 runs, 351 assertions)
+- Linter passes
+
+**Notes for next session**:
+- Client API is now dramatically simplified:
+  ```ruby
+  client = Yaic::Client.new(server: "irc.example.com", port: 6667, nickname: "mynick")
+  client.on(:message) { |event| puts event.text }
+  client.connect
+  client.join("#channel")
+  client.privmsg("#channel", "Hello!")
+  client.quit
+  ```
+- Background thread handles all message reading and event dispatch
+- All public methods are thread-safe
+- README.md provides complete documentation
 
 ## Suggested Next Feature
 
-`02-simplified-client-api.md` - Depends on TCPSocket refactor (now complete).
+All planned features complete! The library now has a clean, blocking API with background event processing.

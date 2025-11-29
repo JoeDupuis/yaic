@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require "test_helper"
-require "timeout"
 
 class KickIntegrationTest < Minitest::Test
   def setup
@@ -17,220 +16,118 @@ class KickIntegrationTest < Minitest::Test
     client1 = create_connected_client(@test_nick)
     socket1 = client1.instance_variable_get(:@socket)
 
-    become_oper(socket1)
+    become_oper(client1, socket1)
 
     client1.join(@test_channel)
-    wait_for_join(client1, socket1, @test_channel)
 
     socket1.write("SAMODE #{@test_channel} +o #{@test_nick}")
-    wait_for_mode(socket1, @test_channel)
+    sleep 0.5
 
     client2 = create_connected_client(@test_nick2)
-    socket2 = client2.instance_variable_get(:@socket)
-
     client2.join(@test_channel)
-    wait_for_join(client2, socket2, @test_channel)
-
-    drain_messages(socket1)
-
-    client1.kick(@test_channel, @test_nick2)
 
     kick_received = false
+    client1.on(:kick) { |_event| kick_received = true }
 
-    Timeout.timeout(5) do
-      loop do
-        raw = socket1.read
-        if raw
-          msg = Yaic::Message.parse(raw)
-          client1.handle_message(msg) if msg
-          if msg&.command == "KICK"
-            kick_received = true
-            break
-          end
-        end
-        sleep 0.01
-      end
-    end
+    client1.kick(@test_channel, @test_nick2)
+    sleep 0.5
 
     assert kick_received, "Should receive KICK confirmation"
   ensure
-    socket1&.write("PART #{@test_channel}")
-    client1&.disconnect
-    client2&.disconnect
+    client1&.quit
+    client2&.quit
   end
 
   def test_kick_with_reason
     client1 = create_connected_client(@test_nick)
     socket1 = client1.instance_variable_get(:@socket)
 
-    become_oper(socket1)
+    become_oper(client1, socket1)
 
     client1.join(@test_channel)
-    wait_for_join(client1, socket1, @test_channel)
 
     socket1.write("SAMODE #{@test_channel} +o #{@test_nick}")
-    wait_for_mode(socket1, @test_channel)
+    sleep 0.5
 
     client2 = create_connected_client(@test_nick2)
-    socket2 = client2.instance_variable_get(:@socket)
-
     client2.join(@test_channel)
-    wait_for_join(client2, socket2, @test_channel)
-
-    drain_messages(socket1)
-
-    client1.kick(@test_channel, @test_nick2, "Breaking rules")
 
     kick_reason = nil
+    client1.on(:kick) { |event| kick_reason = event.reason }
 
-    Timeout.timeout(5) do
-      loop do
-        raw = socket1.read
-        if raw
-          msg = Yaic::Message.parse(raw)
-          client1.handle_message(msg) if msg
-          if msg&.command == "KICK"
-            kick_reason = msg.params[2]
-            break
-          end
-        end
-        sleep 0.01
-      end
-    end
+    client1.kick(@test_channel, @test_nick2, "Breaking rules")
+    sleep 0.5
 
     assert_equal "Breaking rules", kick_reason
   ensure
-    socket1&.write("PART #{@test_channel}")
-    client1&.disconnect
-    client2&.disconnect
+    client1&.quit
+    client2&.quit
   end
 
   def test_kick_without_permission
     client1 = create_connected_client(@test_nick)
-    socket1 = client1.instance_variable_get(:@socket)
-
     client1.join(@test_channel)
-    wait_for_join(client1, socket1, @test_channel)
 
     client2 = create_connected_client(@test_nick2)
-    socket2 = client2.instance_variable_get(:@socket)
-
     client2.join(@test_channel)
-    wait_for_join(client2, socket2, @test_channel)
-
-    drain_messages(socket2)
-
-    client2.kick(@test_channel, @test_nick)
 
     error_received = false
+    client2.on(:error) { |event| error_received = true if event.numeric == 482 }
 
-    Timeout.timeout(5) do
-      loop do
-        raw = socket2.read
-        if raw
-          msg = Yaic::Message.parse(raw)
-          client2.handle_message(msg) if msg
-          if msg&.command == "482"
-            error_received = true
-            break
-          end
-        end
-        sleep 0.01
-      end
-    end
+    client2.kick(@test_channel, @test_nick)
+    sleep 0.5
 
     assert error_received, "Should receive 482 ERR_CHANOPRIVSNEEDED"
   ensure
-    socket1&.write("PART #{@test_channel}")
-    socket2&.write("PART #{@test_channel}")
-    client1&.disconnect
-    client2&.disconnect
+    client1&.quit
+    client2&.quit
   end
 
   def test_kick_non_existent_user
     client1 = create_connected_client(@test_nick)
     socket1 = client1.instance_variable_get(:@socket)
 
-    become_oper(socket1)
+    become_oper(client1, socket1)
 
     client1.join(@test_channel)
-    wait_for_join(client1, socket1, @test_channel)
 
     socket1.write("SAMODE #{@test_channel} +o #{@test_nick}")
-    wait_for_mode(socket1, @test_channel)
-
-    drain_messages(socket1)
-
-    client1.kick(@test_channel, "nobodyhere")
+    sleep 0.5
 
     error_received = false
-    error_code = nil
+    client1.on(:error) { |event| error_received = true if [441, 401].include?(event.numeric) }
 
-    Timeout.timeout(5) do
-      loop do
-        raw = socket1.read
-        if raw
-          msg = Yaic::Message.parse(raw)
-          client1.handle_message(msg) if msg
-          if msg&.command == "441" || msg&.command == "401"
-            error_received = true
-            error_code = msg.command
-            break
-          end
-        end
-        sleep 0.01
-      end
-    end
+    client1.kick(@test_channel, "nobodyhere")
+    sleep 0.5
 
     assert error_received, "Should receive 441 ERR_USERNOTINCHANNEL or 401 ERR_NOSUCHNICK"
   ensure
-    socket1&.write("PART #{@test_channel}")
-    client1&.disconnect
+    client1&.quit
   end
 
   def test_receive_kick_others
     client1 = create_connected_client(@test_nick)
     socket1 = client1.instance_variable_get(:@socket)
 
-    become_oper(socket1)
+    become_oper(client1, socket1)
 
     client1.join(@test_channel)
-    wait_for_join(client1, socket1, @test_channel)
 
     socket1.write("SAMODE #{@test_channel} +o #{@test_nick}")
-    wait_for_mode(socket1, @test_channel)
+    sleep 0.5
 
     client2 = create_connected_client(@test_nick2)
-    socket2 = client2.instance_variable_get(:@socket)
-
     client2.join(@test_channel)
-    wait_for_join(client2, socket2, @test_channel)
 
     third_nick = "v#{Process.pid}#{Time.now.to_i % 10000}"
     client3 = create_connected_client(third_nick)
-    socket3 = client3.instance_variable_get(:@socket)
-
     client3.join(@test_channel)
-    wait_for_join(client3, socket3, @test_channel)
-
-    drain_messages(socket2)
 
     kick_event = nil
     client2.on(:kick) { |event| kick_event = event }
 
     socket1.write("KICK #{@test_channel} #{third_nick} :Goodbye")
-
-    Timeout.timeout(5) do
-      loop do
-        raw = socket2.read
-        if raw
-          msg = Yaic::Message.parse(raw)
-          client2.handle_message(msg) if msg
-          break if kick_event
-        end
-        sleep 0.01
-      end
-    end
+    sleep 0.5
 
     refute_nil kick_event
     assert_equal :kick, kick_event.type
@@ -239,32 +136,24 @@ class KickIntegrationTest < Minitest::Test
     assert_equal @test_nick, kick_event.by.nick
     assert_equal "Goodbye", kick_event.reason
   ensure
-    socket1&.write("PART #{@test_channel}")
-    socket2&.write("PART #{@test_channel}")
-    client1&.disconnect
-    client2&.disconnect
-    client3&.disconnect
+    client1&.quit
+    client2&.quit
+    client3&.quit
   end
 
   def test_receive_kick_self
     client1 = create_connected_client(@test_nick)
     socket1 = client1.instance_variable_get(:@socket)
 
-    become_oper(socket1)
+    become_oper(client1, socket1)
 
     client1.join(@test_channel)
-    wait_for_join(client1, socket1, @test_channel)
 
     socket1.write("SAMODE #{@test_channel} +o #{@test_nick}")
-    wait_for_mode(socket1, @test_channel)
+    sleep 0.5
 
     client2 = create_connected_client(@test_nick2)
-    socket2 = client2.instance_variable_get(:@socket)
-
     client2.join(@test_channel)
-    wait_for_join(client2, socket2, @test_channel)
-
-    drain_messages(socket2)
 
     kick_event = nil
     client2.on(:kick) { |event| kick_event = event }
@@ -272,18 +161,7 @@ class KickIntegrationTest < Minitest::Test
     assert client2.channels.key?(@test_channel)
 
     socket1.write("KICK #{@test_channel} #{@test_nick2} :You are kicked")
-
-    Timeout.timeout(5) do
-      loop do
-        raw = socket2.read
-        if raw
-          msg = Yaic::Message.parse(raw)
-          client2.handle_message(msg) if msg
-          break if kick_event
-        end
-        sleep 0.01
-      end
-    end
+    sleep 0.5
 
     refute_nil kick_event
     assert_equal :kick, kick_event.type
@@ -291,9 +169,8 @@ class KickIntegrationTest < Minitest::Test
     assert_equal @test_nick2, kick_event.user
     refute client2.channels.key?(@test_channel), "Channel should be removed after being kicked"
   ensure
-    socket1&.write("PART #{@test_channel}")
-    client1&.disconnect
-    client2&.disconnect
+    client1&.quit
+    client2&.quit
   end
 
   private
@@ -312,74 +189,17 @@ class KickIntegrationTest < Minitest::Test
       user: "testuser",
       realname: "Test User"
     )
-
     client.connect
-    client.on_socket_connected
-
-    socket = client.instance_variable_get(:@socket)
-    wait_for_connection(client, socket)
-
     client
   end
 
-  def wait_for_connection(client, socket, seconds = 10)
-    Timeout.timeout(seconds) do
-      loop do
-        raw = socket.read
-        if raw
-          msg = Yaic::Message.parse(raw)
-          client.handle_message(msg) if msg
-          break if client.state == :connected
-        end
-        sleep 0.01
-      end
-    end
-  end
-
-  def wait_for_join(client, socket, channel, seconds = 5)
-    joined = false
-    Timeout.timeout(seconds) do
-      loop do
-        raw = socket.read
-        if raw
-          msg = Yaic::Message.parse(raw)
-          client.handle_message(msg) if msg
-          if msg&.command == "JOIN" && msg&.params&.first == channel
-            joined = true
-          end
-          break if msg&.command == "366"
-        end
-        sleep 0.01
-      end
-    end
-    joined
-  end
-
-  def wait_for_mode(socket, channel)
-    Timeout.timeout(5) do
-      loop do
-        raw = socket.read
-        break if raw&.include?("MODE") && raw.include?(channel)
-        sleep 0.01
-      end
-    end
-  end
-
-  def become_oper(socket)
+  def become_oper(client, socket)
+    oper_success = false
+    client.on(:raw) { |event| oper_success = true if event.message&.command == "381" }
     socket.write("OPER testoper testpass")
-    Timeout.timeout(5) do
-      loop do
-        raw = socket.read
-        break if raw&.include?("381")
-        sleep 0.01
-      end
-    end
-  end
-
-  def drain_messages(socket)
-    loop do
-      raw = socket.read
-      break if raw.nil?
+    deadline = Time.now + 5
+    until oper_success || Time.now > deadline
+      sleep 0.05
     end
   end
 end

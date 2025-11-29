@@ -9,17 +9,24 @@ class ClientTest < Minitest::Test
   end
 
   def test_state_transitions_to_connecting_on_connect
-    mock_socket = MockSocket.new
-    client = Yaic::Client.new(host: "localhost", port: 6667)
+    mock_socket = BlockingMockSocket.new
+    mock_socket.responses = [
+      ":server 001 testnick :Welcome\r\n"
+    ]
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick", user: "testuser", realname: "Test User")
     client.instance_variable_set(:@socket, mock_socket)
 
     client.connect
-    assert_equal :connecting, client.state
+    assert_equal :connected, client.state
+  ensure
+    client&.quit
   end
 
-  def test_state_transitions_to_registering_after_socket_connected
-    mock_socket = MockSocket.new
-    mock_socket.connect_response = [:connected]
+  def test_state_transitions_and_registration_messages_sent
+    mock_socket = BlockingMockSocket.new
+    mock_socket.responses = [
+      ":server 001 testnick :Welcome\r\n"
+    ]
 
     client = Yaic::Client.new(
       host: "localhost",
@@ -31,11 +38,12 @@ class ClientTest < Minitest::Test
     client.instance_variable_set(:@socket, mock_socket)
 
     client.connect
-    client.on_socket_connected
 
-    assert_equal :registering, client.state
+    assert_equal :connected, client.state
     assert mock_socket.written.any? { |m| m.include?("NICK testnick") }
     assert mock_socket.written.any? { |m| m.include?("USER testuser 0 * :Test User") }
+  ensure
+    client&.quit
   end
 
   def test_state_transitions_to_connected_on_rpl_welcome
@@ -76,7 +84,10 @@ class ClientTest < Minitest::Test
   end
 
   def test_registration_with_password_sends_pass_first
-    mock_socket = MockSocket.new
+    mock_socket = BlockingMockSocket.new
+    mock_socket.responses = [
+      ":server 001 testnick :Welcome\r\n"
+    ]
 
     client = Yaic::Client.new(
       host: "localhost",
@@ -89,7 +100,6 @@ class ClientTest < Minitest::Test
     client.instance_variable_set(:@socket, mock_socket)
 
     client.connect
-    client.on_socket_connected
 
     pass_idx = mock_socket.written.find_index { |m| m.include?("PASS secret") }
     nick_idx = mock_socket.written.find_index { |m| m.include?("NICK testnick") }
@@ -100,6 +110,8 @@ class ClientTest < Minitest::Test
     refute_nil user_idx, "USER should be sent"
     assert pass_idx < nick_idx, "PASS should be sent before NICK"
     assert nick_idx < user_idx, "NICK should be sent before USER"
+  ensure
+    client&.quit
   end
 
   def test_responds_to_ping_with_pong
@@ -463,25 +475,45 @@ class ClientTest < Minitest::Test
   end
 
   def test_join_formats_correctly
-    mock_socket = MockSocket.new
-    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    mock_socket = BlockingMockSocket.new
+    mock_socket.responses = [
+      ":server 001 testnick :Welcome\r\n"
+    ]
+    mock_socket.post_connect_responses = [
+      ":testnick!user@host JOIN #test\r\n",
+      ":server 366 testnick #test :End\r\n"
+    ]
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick", user: "testuser", realname: "Test User")
     client.instance_variable_set(:@socket, mock_socket)
-    client.instance_variable_set(:@state, :connected)
 
+    client.connect
+    mock_socket.trigger_post_connect
     client.join("#test")
 
-    assert_equal "JOIN #test\r\n", mock_socket.written.last
+    assert mock_socket.written.any? { |m| m == "JOIN #test\r\n" }
+  ensure
+    client&.quit
   end
 
   def test_join_with_key_formats_correctly
-    mock_socket = MockSocket.new
-    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    mock_socket = BlockingMockSocket.new
+    mock_socket.responses = [
+      ":server 001 testnick :Welcome\r\n"
+    ]
+    mock_socket.post_connect_responses = [
+      ":testnick!user@host JOIN #test\r\n",
+      ":server 366 testnick #test :End\r\n"
+    ]
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick", user: "testuser", realname: "Test User")
     client.instance_variable_set(:@socket, mock_socket)
-    client.instance_variable_set(:@state, :connected)
 
+    client.connect
+    mock_socket.trigger_post_connect
     client.join("#test", "secret")
 
-    assert_equal "JOIN #test :secret\r\n", mock_socket.written.last
+    assert mock_socket.written.any? { |m| m == "JOIN #test :secret\r\n" }
+  ensure
+    client&.quit
   end
 
   def test_part_formats_correctly
@@ -683,14 +715,23 @@ class ClientTest < Minitest::Test
   end
 
   def test_nick_formats_correctly
-    mock_socket = MockSocket.new
-    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    mock_socket = BlockingMockSocket.new
+    mock_socket.responses = [
+      ":server 001 testnick :Welcome\r\n"
+    ]
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick", user: "testuser", realname: "Test User")
     client.instance_variable_set(:@socket, mock_socket)
-    client.instance_variable_set(:@state, :connected)
 
-    client.nick("newnick")
+    client.connect
 
-    assert_equal "NICK newnick\r\n", mock_socket.written.last
+    mock_socket.post_connect_responses = [
+      ":testnick!u@h NICK newnick\r\n"
+    ]
+    client.nick("newnick", timeout: 1)
+
+    assert mock_socket.written.any? { |m| m == "NICK newnick\r\n" }
+  ensure
+    client&.quit
   end
 
   def test_parse_nick_event
@@ -1254,14 +1295,24 @@ class ClientTest < Minitest::Test
   end
 
   def test_join_delegates_to_socket
-    mock_socket = MockSocket.new
-    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    mock_socket = BlockingMockSocket.new
+    mock_socket.responses = [
+      ":server 001 testnick :Welcome\r\n"
+    ]
+    mock_socket.post_connect_responses = [
+      ":testnick!u@h JOIN #test\r\n",
+      ":server 366 testnick #test :End\r\n"
+    ]
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick", user: "testuser", realname: "Test User")
     client.instance_variable_set(:@socket, mock_socket)
-    client.instance_variable_set(:@state, :connected)
 
+    client.connect
+    mock_socket.trigger_post_connect
     client.join("#test")
 
     assert mock_socket.written.any? { |m| m.include?("JOIN #test") }
+  ensure
+    client&.quit
   end
 
   def test_privmsg_delegates_to_socket
@@ -1291,6 +1342,190 @@ class ClientTest < Minitest::Test
     assert_equal "Nickname in use", received_event.message
   end
 
+  def test_connect_blocks_until_registered
+    mock_socket = BlockingMockSocket.new
+    mock_socket.responses = [
+      ":server 001 testnick :Welcome to the IRC Network\r\n"
+    ]
+
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick", user: "testuser", realname: "Test User")
+    client.instance_variable_set(:@socket, mock_socket)
+
+    client.connect
+    assert_equal :connected, client.state
+  end
+
+  def test_connect_handles_nick_collision
+    mock_socket = BlockingMockSocket.new
+    mock_socket.responses = [
+      ":server 433 * testnick :Nickname is already in use\r\n",
+      ":server 001 testnick_ :Welcome to the IRC Network\r\n"
+    ]
+
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick", user: "testuser", realname: "Test User")
+    client.instance_variable_set(:@socket, mock_socket)
+
+    client.connect
+    assert_equal :connected, client.state
+    assert_equal "testnick_", client.nick
+  end
+
+  def test_events_fire_from_background_thread
+    mock_socket = BlockingMockSocket.new
+    mock_socket.responses = [
+      ":server 001 testnick :Welcome\r\n"
+    ]
+    mock_socket.post_connect_responses = [
+      ":nick!user@host PRIVMSG #test :Hello\r\n"
+    ]
+
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick", user: "testuser", realname: "Test User")
+    client.instance_variable_set(:@socket, mock_socket)
+
+    received_events = []
+    client.on(:message) { |event| received_events << event }
+
+    client.connect
+    sleep 0.1
+
+    assert_equal 1, received_events.size
+    assert_equal "Hello", received_events.first.text
+  ensure
+    client&.quit
+  end
+
+  def test_quit_stops_the_read_loop
+    mock_socket = BlockingMockSocket.new
+    mock_socket.responses = [
+      ":server 001 testnick :Welcome\r\n"
+    ]
+
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick", user: "testuser", realname: "Test User")
+    client.instance_variable_set(:@socket, mock_socket)
+
+    client.connect
+    read_thread = client.instance_variable_get(:@read_thread)
+    refute_nil read_thread
+    assert read_thread.alive?
+
+    client.quit
+    sleep 0.1
+
+    refute read_thread.alive?
+    assert_equal :disconnected, client.state
+  end
+
+  def test_on_off_are_thread_safe
+    mock_socket = BlockingMockSocket.new
+    mock_socket.responses = [
+      ":server 001 testnick :Welcome\r\n"
+    ]
+
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick", user: "testuser", realname: "Test User")
+    client.instance_variable_set(:@socket, mock_socket)
+
+    client.connect
+
+    threads = []
+    10.times do |i|
+      threads << Thread.new do
+        client.on(:message) {}
+        client.off(:message)
+        client.on(:"test_#{i}") {}
+      end
+    end
+
+    threads.each(&:join)
+  ensure
+    client&.quit
+  end
+
+  def test_join_blocks_until_confirmed
+    mock_socket = BlockingMockSocket.new
+    mock_socket.responses = [
+      ":server 001 testnick :Welcome\r\n"
+    ]
+    mock_socket.post_connect_responses = [
+      ":testnick!user@host JOIN #test\r\n",
+      ":server 353 testnick = #test :testnick\r\n",
+      ":server 366 testnick #test :End of /NAMES list\r\n"
+    ]
+
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick", user: "testuser", realname: "Test User")
+    client.instance_variable_set(:@socket, mock_socket)
+
+    client.connect
+    mock_socket.trigger_post_connect
+
+    client.join("#test")
+    assert client.channels.key?("#test")
+  ensure
+    client&.quit
+  end
+
+  def test_part_blocks_until_confirmed
+    mock_socket = BlockingMockSocket.new
+    mock_socket.responses = [
+      ":server 001 testnick :Welcome\r\n"
+    ]
+    mock_socket.post_connect_responses = [
+      ":testnick!user@host JOIN #test\r\n",
+      ":server 353 testnick = #test :testnick\r\n",
+      ":server 366 testnick #test :End of /NAMES list\r\n"
+    ]
+
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick", user: "testuser", realname: "Test User")
+    client.instance_variable_set(:@socket, mock_socket)
+
+    client.connect
+    mock_socket.trigger_post_connect
+    client.join("#test")
+
+    mock_socket.post_connect_responses = [
+      ":testnick!user@host PART #test\r\n"
+    ]
+    mock_socket.trigger_post_connect
+
+    client.part("#test")
+    refute client.channels.key?("#test")
+  ensure
+    client&.quit
+  end
+
+  def test_nick_blocks_until_confirmed
+    mock_socket = BlockingMockSocket.new
+    mock_socket.responses = [
+      ":server 001 testnick :Welcome\r\n"
+    ]
+
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick", user: "testuser", realname: "Test User")
+    client.instance_variable_set(:@socket, mock_socket)
+
+    client.connect
+    assert_equal "testnick", client.nick
+
+    mock_socket.post_connect_responses = [
+      ":testnick!user@host NICK newnick\r\n"
+    ]
+
+    client.nick("newnick", timeout: 1)
+    assert_equal "newnick", client.nick
+  ensure
+    client&.quit
+  end
+
+  def test_connect_raises_on_timeout
+    mock_socket = BlockingMockSocket.new
+    mock_socket.responses = []
+
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick", user: "testuser", realname: "Test User")
+    client.instance_variable_set(:@socket, mock_socket)
+
+    assert_raises(Yaic::TimeoutError) do
+      client.connect(timeout: 0.1)
+    end
+  end
+
   class MockSocket
     attr_accessor :connect_response
     attr_reader :written
@@ -1318,5 +1553,58 @@ class ClientTest < Minitest::Test
     end
 
     attr_reader :state
+  end
+
+  class BlockingMockSocket
+    attr_accessor :responses, :post_connect_responses
+    attr_reader :written, :state
+
+    def initialize
+      @written = []
+      @responses = []
+      @post_connect_responses = []
+      @state = :disconnected
+      @response_index = 0
+      @post_connect_triggered = false
+      @mutex = Mutex.new
+    end
+
+    def connect
+      @state = :connecting
+    end
+
+    def disconnect
+      @state = :disconnected
+    end
+
+    def write(message)
+      @mutex.synchronize do
+        @written << message.to_s
+      end
+    end
+
+    def read
+      @mutex.synchronize do
+        if @response_index < @responses.size
+          msg = @responses[@response_index]
+          @response_index += 1
+          if @response_index >= @responses.size
+            @post_connect_triggered = true
+          end
+          return msg
+        end
+
+        if @post_connect_triggered && @post_connect_responses.any?
+          return @post_connect_responses.shift
+        end
+      end
+      nil
+    end
+
+    def trigger_post_connect
+      @mutex.synchronize do
+        @post_connect_triggered = true
+      end
+    end
   end
 end

@@ -3,6 +3,8 @@
 module Yaic
   class Client
     STALE_TIMEOUT = 180
+    DEFAULT_CONNECT_TIMEOUT = 30
+    DEFAULT_OPERATION_TIMEOUT = 10
 
     EVENT_MAP = {
       "PRIVMSG" => :message,
@@ -41,15 +43,22 @@ module Yaic
       @nick_attempts = 0
       @last_received_at = nil
       @handlers = {}
+      @handlers_mutex = Mutex.new
       @channels = {}
+      @channels_mutex = Mutex.new
       @pending_names = {}
       @pending_whois = {}
+      @read_thread = nil
+      @state_mutex = Mutex.new
     end
 
-    def connect
+    def connect(timeout: DEFAULT_CONNECT_TIMEOUT)
       @socket ||= Socket.new(@server, @port, ssl: @ssl)
       @socket.connect
-      @state = :connecting
+      send_registration
+      set_state(:registering)
+      start_read_loop
+      wait_until(timeout: timeout) { connected? }
     end
 
     def connected?
@@ -58,12 +67,8 @@ module Yaic
 
     def disconnect
       @socket&.disconnect
-      @state = :disconnected
-    end
-
-    def on_socket_connected
-      @state = :registering
-      send_registration
+      set_state(:disconnected)
+      @read_thread&.join(1)
     end
 
     def handle_message(message)
@@ -125,13 +130,17 @@ module Yaic
     end
 
     def on(event_type, &block)
-      @handlers[event_type] ||= []
-      @handlers[event_type] << block
+      @handlers_mutex.synchronize do
+        @handlers[event_type] ||= []
+        @handlers[event_type] << block
+      end
       self
     end
 
     def off(event_type)
-      @handlers.delete(event_type)
+      @handlers_mutex.synchronize do
+        @handlers.delete(event_type)
+      end
       self
     end
 
@@ -147,33 +156,38 @@ module Yaic
       @socket.write(message.to_s)
     end
 
-    def join(channel, key = nil)
+    def join(channel, key = nil, timeout: DEFAULT_OPERATION_TIMEOUT)
       params = key ? [channel, key] : [channel]
       message = Message.new(command: "JOIN", params: params)
       @socket.write(message.to_s)
+      wait_until(timeout: timeout) { channel_joined?(channel) }
     end
 
-    def part(channel, reason = nil)
+    def part(channel, reason = nil, timeout: DEFAULT_OPERATION_TIMEOUT)
       params = reason ? [channel, reason] : [channel]
       message = Message.new(command: "PART", params: params)
       @socket.write(message.to_s)
+      wait_until(timeout: timeout) { !channel_joined?(channel) }
     end
 
     def quit(reason = nil)
       params = reason ? [reason] : []
       message = Message.new(command: "QUIT", params: params)
       @socket.write(message.to_s)
-      @channels.clear
+      @channels_mutex.synchronize { @channels.clear }
+      set_state(:disconnected)
+      @read_thread&.join(5)
       @socket&.disconnect
-      @state = :disconnected
       emit(:disconnect, nil)
     end
 
-    def nick(new_nick = nil)
+    def nick(new_nick = nil, timeout: DEFAULT_OPERATION_TIMEOUT)
       return @nick if new_nick.nil?
 
+      old_nick = @nick
       message = Message.new(command: "NICK", params: [new_nick])
       @socket.write(message.to_s)
+      wait_until(timeout: timeout) { @nick != old_nick }
     end
 
     def topic(channel, new_topic = nil)
@@ -213,6 +227,43 @@ module Yaic
 
     private
 
+    def set_state(new_state)
+      @state_mutex.synchronize { @state = new_state }
+    end
+
+    def channel_joined?(channel)
+      @channels_mutex.synchronize { @channels.key?(channel) }
+    end
+
+    def wait_until(timeout:)
+      deadline = Time.now + timeout
+      until yield
+        raise Yaic::TimeoutError, "Operation timed out after #{timeout} seconds" if Time.now > deadline
+        sleep 0.01
+      end
+    end
+
+    def start_read_loop
+      @read_thread = Thread.new do
+        loop do
+          break if @state == :disconnected
+          process_incoming
+        end
+      end
+    end
+
+    def process_incoming
+      raw = @socket.read
+      if raw
+        message = Message.parse(raw)
+        handle_message(message) if message
+      else
+        sleep 0.001
+      end
+    rescue => e
+      emit(:error, nil, exception: e)
+    end
+
     def send_registration
       if @password
         @socket.write(Registration.pass_message(@password).to_s)
@@ -223,7 +274,7 @@ module Yaic
 
     def handle_rpl_welcome(message)
       @nick = message.params[0] if message.params[0]
-      @state = :connected
+      set_state(:connected)
     end
 
     def handle_rpl_isupport(message)
@@ -260,7 +311,9 @@ module Yaic
       return unless joiner_nick && channel_name
 
       if joiner_nick == @nick
-        @channels[channel_name] = Channel.new(channel_name)
+        @channels_mutex.synchronize do
+          @channels[channel_name] = Channel.new(channel_name)
+        end
       end
     end
 
@@ -270,7 +323,9 @@ module Yaic
       return unless parter_nick && channel_name
 
       if parter_nick == @nick
-        @channels.delete(channel_name)
+        @channels_mutex.synchronize do
+          @channels.delete(channel_name)
+        end
       end
     end
 
@@ -283,10 +338,12 @@ module Yaic
         @nick = new_nick
       end
 
-      @channels.each_value do |channel|
-        if channel.users.key?(old_nick)
-          user_data = channel.users.delete(old_nick)
-          channel.users[new_nick] = user_data
+      @channels_mutex.synchronize do
+        @channels.each_value do |channel|
+          if channel.users.key?(old_nick)
+            user_data = channel.users.delete(old_nick)
+            channel.users[new_nick] = user_data
+          end
         end
       end
     end
@@ -296,11 +353,13 @@ module Yaic
       kicked_nick = message.params[1]
       return unless channel_name && kicked_nick
 
-      if kicked_nick == @nick
-        @channels.delete(channel_name)
-      else
-        channel = @channels[channel_name]
-        channel&.users&.delete(kicked_nick)
+      @channels_mutex.synchronize do
+        if kicked_nick == @nick
+          @channels.delete(channel_name)
+        else
+          channel = @channels[channel_name]
+          channel&.users&.delete(kicked_nick)
+        end
       end
     end
 
@@ -310,8 +369,10 @@ module Yaic
       setter_nick = message.source&.nick
       return unless channel_name
 
-      channel = @channels[channel_name]
-      channel&.set_topic(topic_text, setter_nick)
+      @channels_mutex.synchronize do
+        channel = @channels[channel_name]
+        channel&.set_topic(topic_text, setter_nick)
+      end
     end
 
     def handle_rpl_topic(message)
@@ -319,8 +380,10 @@ module Yaic
       topic_text = message.params[2]
       return unless channel_name
 
-      channel = @channels[channel_name]
-      channel&.set_topic(topic_text)
+      @channels_mutex.synchronize do
+        channel = @channels[channel_name]
+        channel&.set_topic(topic_text)
+      end
     end
 
     def handle_rpl_topicwhotime(message)
@@ -329,8 +392,10 @@ module Yaic
       time_str = message.params[3]
       return unless channel_name && setter && time_str
 
-      channel = @channels[channel_name]
-      channel&.set_topic(channel&.topic, setter, Time.at(time_str.to_i))
+      @channels_mutex.synchronize do
+        channel = @channels[channel_name]
+        channel&.set_topic(channel&.topic, setter, Time.at(time_str.to_i))
+      end
     end
 
     def handle_rpl_namreply(message)
@@ -350,12 +415,15 @@ module Yaic
       channel_name = message.params[1]
       return unless channel_name
 
-      channel = @channels[channel_name]
-      pending = @pending_names.delete(channel_name) || {}
+      pending = nil
+      @channels_mutex.synchronize do
+        channel = @channels[channel_name]
+        pending = @pending_names.delete(channel_name) || {}
 
-      if channel
-        pending.each do |nick, modes|
-          channel.users[nick] = modes
+        if channel
+          pending.each do |nick, modes|
+            channel.users[nick] = modes
+          end
         end
       end
 
@@ -369,57 +437,59 @@ module Yaic
       modes_str = message.params[1]
       return unless modes_str
 
-      channel = @channels[target]
-      return unless channel
+      @channels_mutex.synchronize do
+        channel = @channels[target]
+        return unless channel
 
-      params = message.params[2..] || []
-      param_idx = 0
+        params = message.params[2..] || []
+        param_idx = 0
 
-      adding = true
-      modes_str.each_char do |char|
-        case char
-        when "+"
-          adding = true
-        when "-"
-          adding = false
-        when "o", "v", "h", "a", "q"
-          nick = params[param_idx]
-          param_idx += 1
-          apply_user_mode(channel, nick, char, adding) if nick
-        when "k"
-          if adding
-            channel.modes[:key] = params[param_idx]
+        adding = true
+        modes_str.each_char do |char|
+          case char
+          when "+"
+            adding = true
+          when "-"
+            adding = false
+          when "o", "v", "h", "a", "q"
+            nick = params[param_idx]
             param_idx += 1
-          else
-            channel.modes.delete(:key)
-          end
-        when "l"
-          if adding
-            channel.modes[:limit] = params[param_idx].to_i
+            apply_user_mode(channel, nick, char, adding) if nick
+          when "k"
+            if adding
+              channel.modes[:key] = params[param_idx]
+              param_idx += 1
+            else
+              channel.modes.delete(:key)
+            end
+          when "l"
+            if adding
+              channel.modes[:limit] = params[param_idx].to_i
+              param_idx += 1
+            else
+              channel.modes.delete(:limit)
+            end
+          when "m"
+            channel.modes[:moderated] = adding ? true : nil
+            channel.modes.delete(:moderated) unless adding
+          when "i"
+            channel.modes[:invite_only] = adding ? true : nil
+            channel.modes.delete(:invite_only) unless adding
+          when "t"
+            channel.modes[:topic_protected] = adding ? true : nil
+            channel.modes.delete(:topic_protected) unless adding
+          when "n"
+            channel.modes[:no_external] = adding ? true : nil
+            channel.modes.delete(:no_external) unless adding
+          when "s"
+            channel.modes[:secret] = adding ? true : nil
+            channel.modes.delete(:secret) unless adding
+          when "p"
+            channel.modes[:private] = adding ? true : nil
+            channel.modes.delete(:private) unless adding
+          when "b"
             param_idx += 1
-          else
-            channel.modes.delete(:limit)
           end
-        when "m"
-          channel.modes[:moderated] = adding ? true : nil
-          channel.modes.delete(:moderated) unless adding
-        when "i"
-          channel.modes[:invite_only] = adding ? true : nil
-          channel.modes.delete(:invite_only) unless adding
-        when "t"
-          channel.modes[:topic_protected] = adding ? true : nil
-          channel.modes.delete(:topic_protected) unless adding
-        when "n"
-          channel.modes[:no_external] = adding ? true : nil
-          channel.modes.delete(:no_external) unless adding
-        when "s"
-          channel.modes[:secret] = adding ? true : nil
-          channel.modes.delete(:secret) unless adding
-        when "p"
-          channel.modes[:private] = adding ? true : nil
-          channel.modes.delete(:private) unless adding
-        when "b"
-          param_idx += 1
         end
       end
     end
@@ -545,7 +615,7 @@ module Yaic
     end
 
     def emit(event_type, message, **attributes)
-      handlers = @handlers[event_type]
+      handlers = @handlers_mutex.synchronize { @handlers[event_type]&.dup }
       return unless handlers
 
       event = Event.new(type: event_type, message: message, **attributes)
