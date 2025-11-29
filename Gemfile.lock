@@ -10,6 +10,9 @@ GEM
     brakeman (7.1.1)
       racc
     date (3.5.0)
+    debug (1.11.0)
+      irb (~> 1.10)
+      reline (>= 0.3.8)
     erb (6.0.0)
     io-console (0.8.1)
     irb (1.15.3)
@@ -88,6 +91,7 @@ PLATFORMS
 
 DEPENDENCIES
   brakeman
+  debug
   irb
   m
   minitest (~> 5.16)

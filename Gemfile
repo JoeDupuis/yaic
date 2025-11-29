@@ -15,3 +15,5 @@ gem "standard", "~> 1.3"
 gem "m"
 
 gem "brakeman"
+
+gem "debug"
