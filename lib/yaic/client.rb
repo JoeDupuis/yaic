@@ -16,7 +16,7 @@ module Yaic
       "MODE" => :mode
     }.freeze
 
-    attr_reader :state, :nick, :isupport, :last_received_at
+    attr_reader :state, :nick, :isupport, :last_received_at, :channels
 
     def initialize(host:, port:, nick: nil, user: nil, realname: nil, password: nil, ssl: false)
       @host = host
@@ -33,6 +33,7 @@ module Yaic
       @nick_attempts = 0
       @last_received_at = nil
       @handlers = {}
+      @channels = {}
     end
 
     def connect
@@ -63,6 +64,10 @@ module Yaic
         handle_rpl_isupport(message)
       when "433"
         handle_err_nicknameinuse(message)
+      when "JOIN"
+        handle_join(message)
+      when "PART"
+        handle_part(message)
       end
 
       emit_events(message)
@@ -93,6 +98,18 @@ module Yaic
 
     def notice(target, text)
       message = Message.new(command: "NOTICE", params: [target, text])
+      @socket.write(message.to_s)
+    end
+
+    def join(channel, key = nil)
+      params = key ? [channel, key] : [channel]
+      message = Message.new(command: "JOIN", params: params)
+      @socket.write(message.to_s)
+    end
+
+    def part(channel, reason = nil)
+      params = reason ? [channel, reason] : [channel]
+      message = Message.new(command: "PART", params: params)
       @socket.write(message.to_s)
     end
 
@@ -135,6 +152,26 @@ module Yaic
       token = message.params[0]
       pong = Message.new(command: "PONG", params: [token])
       @socket.write(pong.to_s)
+    end
+
+    def handle_join(message)
+      channel_name = message.params[0]
+      joiner_nick = message.source&.nick
+      return unless joiner_nick && channel_name
+
+      if joiner_nick == @nick
+        @channels[channel_name] = Channel.new(channel_name)
+      end
+    end
+
+    def handle_part(message)
+      channel_name = message.params[0]
+      parter_nick = message.source&.nick
+      return unless parter_nick && channel_name
+
+      if parter_nick == @nick
+        @channels.delete(channel_name)
+      end
     end
 
     def emit_events(message)

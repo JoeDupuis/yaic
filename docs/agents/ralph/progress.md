@@ -10,7 +10,7 @@
 
 ## Current State
 
-Features 01-06 complete. Ready for `07-join-part.md`.
+Features 01-07 complete. Ready for `08-quit.md`.
 
 ## Feature Order
 
@@ -22,7 +22,7 @@ Features should be implemented in this order (dependencies noted):
 4. ~~`04-ping-pong.md`~~ ✅ - Depends on 01, 02, 03
 5. ~~`05-event-system.md`~~ ✅ - Depends on 01
 6. ~~`06-privmsg-notice.md`~~ ✅ - Depends on 01-05
-7. `07-join-part.md` - Depends on 01-05
+7. ~~`07-join-part.md`~~ ✅ - Depends on 01-05
 8. `08-quit.md` - Depends on 01, 02, 05
 9. `09-nick-change.md` - Depends on 01, 02, 03, 05
 10. `10-topic.md` - Depends on 07
@@ -177,8 +177,32 @@ Features should be implemented in this order (dependencies noted):
 - Message text always uses trailing prefix for proper formatting
 - Error events emitted for 401/403/404 errors
 
+### Session 2025-11-28 (7)
+
+**Feature**: 07-join-part
+**Status**: Completed
+
+**What was done**:
+- Created `Yaic::Channel` class for tracking joined channels
+- Added `client.channels` hash to track which channels client is in
+- Added `client.join(channel, key = nil)` method for joining channels
+- Added `client.part(channel, reason = nil)` method for leaving channels
+- Channel tracking: self-join adds channel, self-part removes channel
+- Other users' JOIN/PART does not affect channel tracking (events still emitted)
+- Fixed `Message#to_s` to only use trailing prefix when actually needed (spaces, empty, starts with colon)
+- Updated server config to remove `+t` default mode so tests can set topics
+- Unit tests for JOIN/PART formatting and event parsing (10 new tests)
+- Integration tests for join, part, topics, multiple channels, events (11 tests)
+- All tests pass (127 runs, 251 assertions, 2 SSL skips), linter clean, QA passed
+
+**Notes for next session**:
+- Channel class available via `require "yaic"`
+- Public interface: `client.join(channel, key)`, `client.part(channel, reason)`, `client.channels`
+- Channel object: `channel.name`, `channel.topic`, `channel.users`, `channel.modes` (users/modes not yet populated)
+- Server config now uses `defaultmodes="n"` instead of `"nt"` to allow topic setting without +o
+
 ---
 
 ## Suggested Next Feature
 
-Continue with `07-join-part.md` - Implements JOIN and PART channel commands.
+Continue with `08-quit.md` - Implements QUIT command for disconnecting from server.

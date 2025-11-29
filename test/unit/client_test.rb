@@ -398,7 +398,7 @@ class ClientTest < Minitest::Test
 
     client.privmsg("#test", "Hello")
 
-    assert_equal "PRIVMSG #test :Hello\r\n", mock_socket.written.last
+    assert_equal "PRIVMSG #test Hello\r\n", mock_socket.written.last
   end
 
   def test_privmsg_with_colon_in_text
@@ -420,7 +420,7 @@ class ClientTest < Minitest::Test
 
     client.notice("nick", "Info")
 
-    assert_equal "NOTICE nick :Info\r\n", mock_socket.written.last
+    assert_equal "NOTICE nick Info\r\n", mock_socket.written.last
   end
 
   def test_privmsg_parses_event_correctly
@@ -460,6 +460,135 @@ class ClientTest < Minitest::Test
     client.msg("#test", "Hello via alias")
 
     assert_equal "PRIVMSG #test :Hello via alias\r\n", mock_socket.written.last
+  end
+
+  def test_join_formats_correctly
+    mock_socket = MockSocket.new
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    client.instance_variable_set(:@socket, mock_socket)
+    client.instance_variable_set(:@state, :connected)
+
+    client.join("#test")
+
+    assert_equal "JOIN #test\r\n", mock_socket.written.last
+  end
+
+  def test_join_with_key_formats_correctly
+    mock_socket = MockSocket.new
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    client.instance_variable_set(:@socket, mock_socket)
+    client.instance_variable_set(:@state, :connected)
+
+    client.join("#test", "secret")
+
+    assert_equal "JOIN #test secret\r\n", mock_socket.written.last
+  end
+
+  def test_part_formats_correctly
+    mock_socket = MockSocket.new
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    client.instance_variable_set(:@socket, mock_socket)
+    client.instance_variable_set(:@state, :connected)
+
+    client.part("#test")
+
+    assert_equal "PART #test\r\n", mock_socket.written.last
+  end
+
+  def test_part_with_reason_formats_correctly
+    mock_socket = MockSocket.new
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    client.instance_variable_set(:@socket, mock_socket)
+    client.instance_variable_set(:@state, :connected)
+
+    client.part("#test", "Bye all")
+
+    assert_equal "PART #test :Bye all\r\n", mock_socket.written.last
+  end
+
+  def test_parse_join_event
+    client = Yaic::Client.new(host: "localhost", port: 6667)
+    received_event = nil
+    client.on(:join) { |event| received_event = event }
+
+    message = Yaic::Message.parse(":nick!u@h JOIN #test\r\n")
+    client.handle_message(message)
+
+    assert_equal :join, received_event.type
+    assert_equal "#test", received_event.channel
+    assert_equal "nick", received_event.user.nick
+  end
+
+  def test_parse_part_event
+    client = Yaic::Client.new(host: "localhost", port: 6667)
+    received_event = nil
+    client.on(:part) { |event| received_event = event }
+
+    message = Yaic::Message.parse(":nick!u@h PART #test :Later\r\n")
+    client.handle_message(message)
+
+    assert_equal :part, received_event.type
+    assert_equal "#test", received_event.channel
+    assert_equal "nick", received_event.user.nick
+    assert_equal "Later", received_event.reason
+  end
+
+  def test_channels_attribute_exists
+    client = Yaic::Client.new(host: "localhost", port: 6667)
+    assert_equal({}, client.channels)
+  end
+
+  def test_join_adds_channel_to_tracking
+    mock_socket = MockSocket.new
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    client.instance_variable_set(:@socket, mock_socket)
+    client.instance_variable_set(:@state, :connected)
+
+    message = Yaic::Message.parse(":testnick!user@host JOIN #test\r\n")
+    client.handle_message(message)
+
+    assert client.channels.key?("#test")
+    assert_instance_of Yaic::Channel, client.channels["#test"]
+    assert_equal "#test", client.channels["#test"].name
+  end
+
+  def test_part_removes_channel_from_tracking
+    mock_socket = MockSocket.new
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    client.instance_variable_set(:@socket, mock_socket)
+    client.instance_variable_set(:@state, :connected)
+
+    join_message = Yaic::Message.parse(":testnick!user@host JOIN #test\r\n")
+    client.handle_message(join_message)
+    assert client.channels.key?("#test")
+
+    part_message = Yaic::Message.parse(":testnick!user@host PART #test :Leaving\r\n")
+    client.handle_message(part_message)
+    refute client.channels.key?("#test")
+  end
+
+  def test_other_user_join_does_not_add_channel
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+
+    message = Yaic::Message.parse(":othernick!user@host JOIN #test\r\n")
+    client.handle_message(message)
+
+    refute client.channels.key?("#test")
+  end
+
+  def test_other_user_part_does_not_remove_channel
+    mock_socket = MockSocket.new
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    client.instance_variable_set(:@socket, mock_socket)
+    client.instance_variable_set(:@state, :connected)
+
+    join_message = Yaic::Message.parse(":testnick!user@host JOIN #test\r\n")
+    client.handle_message(join_message)
+    assert client.channels.key?("#test")
+
+    part_message = Yaic::Message.parse(":othernick!user@host PART #test :Bye\r\n")
+    client.handle_message(part_message)
+    assert client.channels.key?("#test")
   end
 
   class MockSocket

@@ -26,7 +26,7 @@ class SocketIntegrationTest < Minitest::Test
 
     message = read_with_timeout(socket, 5)
     refute_nil message, "Server should send message after registration"
-    assert message.end_with?("\r\n") || message.end_with?("\n")
+    assert message.end_with?("\r\n", "\n")
   ensure
     socket&.disconnect
   end
