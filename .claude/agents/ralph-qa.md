@@ -46,6 +46,7 @@ You are reviewing changes made by an implementor agent. Your job is to verify th
 - Numeric codes match documented values
 - Event names and payloads match feature specs
 - Edge cases from RFC are handled (empty params, special chars)
+- If you need to check the RFC you can find it here: docs/agents/rfc/modern-irc/
 
 ### Linting
 - standardrb passes with no errors

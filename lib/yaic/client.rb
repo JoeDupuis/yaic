@@ -16,6 +16,14 @@ module Yaic
       "MODE" => :mode
     }.freeze
 
+    PREFIX_MODES = {
+      "@" => :op,
+      "+" => :voice,
+      "%" => :halfop,
+      "~" => :owner,
+      "&" => :admin
+    }.freeze
+
     attr_reader :state, :isupport, :last_received_at, :channels
 
     def initialize(host:, port:, nick: nil, user: nil, realname: nil, password: nil, ssl: false)
@@ -34,6 +42,7 @@ module Yaic
       @last_received_at = nil
       @handlers = {}
       @channels = {}
+      @pending_names = {}
     end
 
     def connect
@@ -78,6 +87,10 @@ module Yaic
         handle_rpl_topic(message)
       when "333"
         handle_rpl_topicwhotime(message)
+      when "353"
+        handle_rpl_namreply(message)
+      when "366"
+        handle_rpl_endofnames(message)
       end
 
       emit_events(message)
@@ -149,6 +162,11 @@ module Yaic
     def kick(channel, nick, reason = nil)
       params = reason ? [channel, nick, reason] : [channel, nick]
       message = Message.new(command: "KICK", params: params)
+      @socket.write(message.to_s)
+    end
+
+    def names(channel)
+      message = Message.new(command: "NAMES", params: [channel])
       @socket.write(message.to_s)
     end
 
@@ -272,6 +290,47 @@ module Yaic
 
       channel = @channels[channel_name]
       channel&.set_topic(channel&.topic, setter, Time.at(time_str.to_i))
+    end
+
+    def handle_rpl_namreply(message)
+      channel_name = message.params[2]
+      users_str = message.params[3]
+      return unless channel_name && users_str
+
+      @pending_names[channel_name] ||= {}
+
+      users_str.split.each do |user_entry|
+        nick, modes = parse_user_with_prefix(user_entry)
+        @pending_names[channel_name][nick] = modes
+      end
+    end
+
+    def handle_rpl_endofnames(message)
+      channel_name = message.params[1]
+      return unless channel_name
+
+      channel = @channels[channel_name]
+      pending = @pending_names.delete(channel_name) || {}
+
+      if channel
+        pending.each do |nick, modes|
+          channel.users[nick] = modes
+        end
+      end
+
+      emit(:names, message, channel: channel_name, users: pending)
+    end
+
+    def parse_user_with_prefix(user_entry)
+      modes = Set.new
+      nick = user_entry
+
+      while nick.length > 0 && PREFIX_MODES.key?(nick[0])
+        modes << PREFIX_MODES[nick[0]]
+        nick = nick[1..]
+      end
+
+      [nick, modes]
     end
 
     def emit_events(message)

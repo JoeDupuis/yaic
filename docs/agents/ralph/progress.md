@@ -10,7 +10,7 @@
 
 ## Current State
 
-Features 01-11 complete. Ready for `12-names.md`.
+Features 01-12 complete. Ready for `13-mode.md`.
 
 ## Feature Order
 
@@ -27,7 +27,7 @@ Features should be implemented in this order (dependencies noted):
 9. ~~`09-nick-change.md`~~ ✅ - Depends on 01, 02, 03, 05
 10. ~~`10-topic.md`~~ ✅ - Depends on 07
 11. ~~`11-kick.md`~~ ✅ - Depends on 07
-12. `12-names.md` - Depends on 07
+12. ~~`12-names.md`~~ ✅ - Depends on 07
 13. `13-mode.md` - Depends on 07
 14. `14-who-whois.md` - Depends on 01, 05
 15. `15-client-api.md` - Depends on ALL (final integration)
@@ -287,8 +287,32 @@ Features should be implemented in this order (dependencies noted):
 - State tracking: kicked user removed from channel.users, channel removed from client.channels when self is kicked
 - InspIRCd test server now has oper credentials (testoper/testpass) and SAMODE for setting channel ops
 
+### Session 2025-11-29 (12)
+
+**Feature**: 12-names
+**Status**: Completed
+
+**What was done**:
+- Added `client.names(channel)` method for requesting channel user lists
+- Added `handle_rpl_namreply(message)` to collect users from 353 replies
+- Added `handle_rpl_endofnames(message)` to finalize and emit `:names` event
+- Added `parse_user_with_prefix(user_entry)` to parse user mode prefixes
+- Added `PREFIX_MODES` constant mapping @, +, %, ~, & to :op, :voice, :halfop, :owner, :admin
+- Added `@pending_names` hash to accumulate users across multiple 353 messages
+- Users populated into `channel.users` as `Hash[String, Set[Symbol]]`
+- `:names` event emitted with `channel:` and `users:` attributes
+- Unit tests for NAMES formatting, prefix parsing, multi-message collection (12 tests)
+- Integration tests for get names, names with prefixes, names at join, multi-message names (4 tests)
+- All tests pass (189 runs, 400 assertions, 3 skips), linter clean, QA passed
+
+**Notes for next session**:
+- Public interface: `client.names(channel)`
+- `:names` event emitted with `channel:` (String) and `users:` (Hash[String, Set[Symbol]])
+- `channel.users` is populated from NAMES responses
+- Prefix parsing handles @op, +voice, %halfop, ~owner, &admin and multiple prefixes
+
 ---
 
 ## Suggested Next Feature
 
-Continue with `12-names.md` - Implements NAMES command for getting channel user lists.
+Continue with `13-mode.md` - Implements MODE command for getting/setting channel and user modes.
