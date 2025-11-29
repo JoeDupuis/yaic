@@ -417,17 +417,18 @@ Features should be implemented in this order (dependencies noted):
   - Changed trigger from `master` to `main`
   - Added separate `lint` job running `bundle exec standardrb` (Ruby 3.4)
   - Added `test` job with matrix for Ruby 3.2 and 3.4
-  - Changed test command to `bundle exec rake test_unit` (unit tests only)
+  - Added IRC server (Docker container) for integration tests
+  - Runs full test suite with `bundle exec rake test`
 - Updated `Rakefile`:
   - Added `test_unit` rake task for unit tests only
   - Added `test_integration` rake task for integration tests
 - Added `.gitmodules` to fix broken submodule reference for `docs/agents/rfc/modern-irc`
-- CI run 19780741633 passed (Lint ✓, Ruby 3.2 ✓, Ruby 3.4 ✓)
+- CI run 19780791916 passed (Lint ✓, Ruby 3.2 ✓, Ruby 3.4 ✓)
 
 **Notes for next session**:
-- Integration tests require IRC server, so CI only runs unit tests
-- Use `bundle exec rake test_unit` for unit tests, `bundle exec rake test_integration` for integration tests
-- Full test suite still available via `bundle exec rake test` locally
+- CI runs full test suite including integration tests (IRC server started via Docker)
+- Use `bundle exec rake test_unit` for fast unit tests locally
+- Use `bundle exec rake test_integration` for integration tests (requires IRC server)
 
 ---
 
