@@ -10,7 +10,7 @@
 
 ## Current State
 
-Features 01-15 complete. All planned features implemented!
+Features 01-16 complete. All planned features implemented!
 
 ## Feature Order
 
@@ -31,6 +31,7 @@ Features should be implemented in this order (dependencies noted):
 13. ~~`13-mode.md`~~ ✅ - Depends on 07
 14. ~~`14-who-whois.md`~~ ✅ - Depends on 01, 05
 15. ~~`15-client-api.md`~~ ✅ - Depends on ALL (final integration)
+16. ~~`16-ssl-test-infrastructure.md`~~ ✅ - Depends on 02 (SSL testing)
 
 ---
 
@@ -385,9 +386,32 @@ Features should be implemented in this order (dependencies noted):
 
 ---
 
+### Session 2025-11-29 (16)
+
+**Feature**: 16-ssl-test-infrastructure
+**Status**: Completed
+
+**What was done**:
+- Generated self-signed SSL certificates (cert.pem, key.pem) in `test/fixtures/ssl/`
+- Updated `test/fixtures/inspircd.conf` to enable SSL on port 6697 using GnuTLS module
+- Updated `bin/start-irc-server` to mount SSL certificates into the Docker container
+- Replaced skip statements in SSL tests with actual test implementations:
+  - `test_connect_with_ssl` - verifies SSL connection with VERIFY_NONE
+  - `test_ssl_read_write` - verifies read/write operations over SSL
+  - `test_ssl_verify_peer_fails_self_signed` - verifies VERIFY_PEER fails with self-signed cert
+- Added `require_ssl_server_available` helper method
+- All tests pass (255 runs, 563 assertions, 1 skip for unrelated topic test)
+
+**Notes for next session**:
+- SSL tests now run automatically (no more skips)
+- Uses GnuTLS module (not OpenSSL) as that's what the inspircd Docker image provides
+- To run tests with SSL, restart server with `bin/stop-irc-server && bin/start-irc-server`
+
+---
+
 ## Suggested Next Feature
 
-All 15 planned features are complete. The library now provides:
+All 16 planned features are complete. The library now provides:
 - IRC message parsing and serialization
 - TCP/SSL connection management
 - Registration (NICK, USER, PASS)

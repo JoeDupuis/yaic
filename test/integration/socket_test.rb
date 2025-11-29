@@ -54,11 +54,36 @@ class SocketIntegrationTest < Minitest::Test
   end
 
   def test_connect_with_ssl
-    skip "SSL test infrastructure not yet implemented (see 16-ssl-test-infrastructure.md)"
+    require_ssl_server_available
+    socket = Yaic::Socket.new("localhost", 6697, ssl: true, verify_mode: OpenSSL::SSL::VERIFY_NONE)
+    socket.connect
+    assert_equal :connecting, socket.state
+  ensure
+    socket&.disconnect
   end
 
   def test_ssl_read_write
-    skip "SSL test infrastructure not yet implemented (see 16-ssl-test-infrastructure.md)"
+    require_ssl_server_available
+    socket = Yaic::Socket.new("localhost", 6697, ssl: true, verify_mode: OpenSSL::SSL::VERIFY_NONE)
+    socket.connect
+
+    socket.write("NICK #{@test_nick}")
+    socket.write("USER #{@test_nick} 0 * :Test")
+
+    responses = read_multiple(socket, 5)
+    refute_empty responses, "Server should respond to registration over SSL"
+  ensure
+    socket&.disconnect
+  end
+
+  def test_ssl_verify_peer_fails_self_signed
+    require_ssl_server_available
+    socket = Yaic::Socket.new("localhost", 6697, ssl: true, verify_mode: OpenSSL::SSL::VERIFY_PEER)
+    assert_raises(OpenSSL::SSL::SSLError) do
+      socket.connect
+    end
+  ensure
+    socket&.disconnect
   end
 
   def test_connection_refused
@@ -90,6 +115,13 @@ class SocketIntegrationTest < Minitest::Test
     TCPSocket.new("localhost", 6667).close
   rescue Errno::ECONNREFUSED, Errno::ETIMEDOUT, Errno::EPERM
     flunk "IRC server not running. Start it with: bin/start-irc-server"
+  end
+
+  def require_ssl_server_available
+    require_server_available
+    TCPSocket.new("localhost", 6697).close
+  rescue Errno::ECONNREFUSED, Errno::ETIMEDOUT, Errno::EPERM
+    flunk "SSL IRC server not available on port 6697. Restart with: bin/stop-irc-server && bin/start-irc-server"
   end
 
   def read_with_timeout(socket, seconds)

@@ -6,6 +6,7 @@ CONTAINER_NAME="inspircd"
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 CONFIG_FILE="$PROJECT_DIR/test/fixtures/inspircd.conf"
+SSL_DIR="$PROJECT_DIR/test/fixtures/ssl"
 
 if docker ps --format '{{.Names}}' | grep -q "^${CONTAINER_NAME}$"; then
   echo "inspircd is already running"
@@ -21,6 +22,7 @@ echo "Creating and starting inspircd container..."
 docker run -d --rm --name "$CONTAINER_NAME" \
   -p 6667:6667 -p 6697:6697 \
   -v "$CONFIG_FILE:/inspircd/conf/inspircd.conf:ro" \
+  -v "$SSL_DIR:/inspircd/conf/ssl:ro" \
   inspircd/inspircd-docker
 
 echo "Waiting for IRC server to be ready..."
