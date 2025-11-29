@@ -12,7 +12,7 @@ EXIT_SCRIPT: .claude/ralph/bin/kill-claude
 
 - **Data model**: See `docs/agents/data-model.md`
 - **RFC reference**: See `docs/agents/rfc/modern-irc/` (large, query specific files as needed)
-- **Features**: See `.claude/ralph/features/`
+- **Features**: See `docs/agents/ralph/features/`
 - **Progress**: See `docs/agents/ralph/progress.md`
 
 ## Running Things
@@ -100,7 +100,7 @@ When feature is done and QA passes:
 
 1. Rename the feature file:
    ```bash
-   mv .claude/ralph/features/feature-name.md .claude/ralph/features/feature-name.md.done
+   mv docs/agents/ralph/features/feature-name.md docs/agents/ralph/features/feature-name.md.done
    ```
 
 2. Update `docs/agents/ralph/progress.md`:
