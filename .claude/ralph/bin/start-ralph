@@ -18,7 +18,17 @@ fi
 
 touch "$CONTROL_FILE"
 
+FEATURES_DIR="docs/agents/ralph/features"
+
 while [ -f "$CONTROL_FILE" ]; do
+    REMAINING=$(find "$FEATURES_DIR" -name "*.md" ! -name "*.md.done" 2>/dev/null | wc -l | tr -d ' ')
+    if [ "$REMAINING" -eq 0 ]; then
+        echo "All features complete. Exiting loop."
+        rm -f "$CONTROL_FILE"
+        exit 0
+    fi
+
+    echo "Features remaining: $REMAINING"
 
     if [ -n "$PROMPT_OVERRIDE" ]; then
         PROMPT_CONTENT="$PROMPT_OVERRIDE"
