@@ -206,6 +206,190 @@ class ClientTest < Minitest::Test
     refute client.connection_stale?
   end
 
+  def test_register_single_handler
+    client = Yaic::Client.new(host: "localhost", port: 6667)
+    called = false
+    client.on(:message) { called = true }
+
+    handlers = client.instance_variable_get(:@handlers)
+    assert_equal 1, handlers[:message].size
+  end
+
+  def test_register_multiple_handlers_for_same_event
+    client = Yaic::Client.new(host: "localhost", port: 6667)
+    client.on(:message) {}
+    client.on(:message) {}
+    client.on(:message) {}
+
+    handlers = client.instance_variable_get(:@handlers)
+    assert_equal 3, handlers[:message].size
+  end
+
+  def test_register_handlers_for_different_events
+    client = Yaic::Client.new(host: "localhost", port: 6667)
+    client.on(:message) {}
+    client.on(:join) {}
+    client.on(:part) {}
+
+    handlers = client.instance_variable_get(:@handlers)
+    assert_equal 1, handlers[:message].size
+    assert_equal 1, handlers[:join].size
+    assert_equal 1, handlers[:part].size
+  end
+
+  def test_on_returns_self_for_chaining
+    client = Yaic::Client.new(host: "localhost", port: 6667)
+    result = client.on(:message) {}
+    assert_equal client, result
+  end
+
+  def test_off_removes_handlers
+    client = Yaic::Client.new(host: "localhost", port: 6667)
+    client.on(:message) {}
+    client.on(:message) {}
+    client.off(:message)
+
+    handlers = client.instance_variable_get(:@handlers)
+    assert_nil handlers[:message]
+  end
+
+  def test_off_returns_self_for_chaining
+    client = Yaic::Client.new(host: "localhost", port: 6667)
+    result = client.off(:message)
+    assert_equal client, result
+  end
+
+  def test_dispatch_calls_all_handlers_in_order
+    client = Yaic::Client.new(host: "localhost", port: 6667)
+    called = []
+    client.on(:message) { called << 1 }
+    client.on(:message) { called << 2 }
+    client.on(:message) { called << 3 }
+
+    message = Yaic::Message.parse(":nick!user@host PRIVMSG #test :hello\r\n")
+    client.handle_message(message)
+
+    assert_equal [1, 2, 3], called
+  end
+
+  def test_dispatch_with_correct_payload
+    client = Yaic::Client.new(host: "localhost", port: 6667)
+    received_event = nil
+    client.on(:message) { |event| received_event = event }
+
+    message = Yaic::Message.parse(":nick!user@host PRIVMSG #chan :hello\r\n")
+    client.handle_message(message)
+
+    assert_equal :message, received_event.type
+    assert_equal "nick", received_event.source.nick
+    assert_equal "#chan", received_event.target
+    assert_equal "hello", received_event.text
+  end
+
+  def test_handler_exception_does_not_stop_others
+    client = Yaic::Client.new(host: "localhost", port: 6667)
+    called = []
+    client.on(:message) { called << 1 }
+    client.on(:message) { raise "oops" }
+    client.on(:message) { called << 3 }
+
+    message = Yaic::Message.parse(":nick!user@host PRIVMSG #test :hello\r\n")
+    client.handle_message(message)
+
+    assert_equal [1, 3], called
+  end
+
+  def test_unknown_event_type_silently_ignored
+    client = Yaic::Client.new(host: "localhost", port: 6667)
+    client.send(:emit, :foo, nil)
+  end
+
+  def test_privmsg_triggers_message_event
+    client = Yaic::Client.new(host: "localhost", port: 6667)
+    received_type = nil
+    client.on(:message) { |event| received_type = event.type }
+
+    message = Yaic::Message.parse(":nick!user@host PRIVMSG #test :hello\r\n")
+    client.handle_message(message)
+
+    assert_equal :message, received_type
+  end
+
+  def test_notice_triggers_notice_event
+    client = Yaic::Client.new(host: "localhost", port: 6667)
+    received_type = nil
+    client.on(:notice) { |event| received_type = event.type }
+
+    message = Yaic::Message.parse(":nick!user@host NOTICE #test :hello\r\n")
+    client.handle_message(message)
+
+    assert_equal :notice, received_type
+  end
+
+  def test_join_triggers_join_event
+    client = Yaic::Client.new(host: "localhost", port: 6667)
+    received_type = nil
+    client.on(:join) { |event| received_type = event.type }
+
+    message = Yaic::Message.parse(":nick!user@host JOIN #test\r\n")
+    client.handle_message(message)
+
+    assert_equal :join, received_type
+  end
+
+  def test_001_triggers_connect_event
+    client = Yaic::Client.new(host: "localhost", port: 6667)
+    received_type = nil
+    client.on(:connect) { |event| received_type = event.type }
+
+    message = Yaic::Message.parse(":server.example.com 001 testnick :Welcome\r\n")
+    client.handle_message(message)
+
+    assert_equal :connect, received_type
+  end
+
+  def test_error_numeric_triggers_error_event
+    mock_socket = MockSocket.new
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    client.instance_variable_set(:@socket, mock_socket)
+    received_event = nil
+    client.on(:error) { |event| received_event = event }
+
+    message = Yaic::Message.parse(":server.example.com 433 * testnick :Nickname in use\r\n")
+    client.handle_message(message)
+
+    assert_equal :error, received_event.type
+    assert_equal 433, received_event.numeric
+  end
+
+  def test_raw_event_emitted_for_every_message
+    mock_socket = MockSocket.new
+    client = Yaic::Client.new(host: "localhost", port: 6667)
+    client.instance_variable_set(:@socket, mock_socket)
+    raw_events = []
+    client.on(:raw) { |event| raw_events << event }
+
+    message = Yaic::Message.parse("PING :server\r\n")
+    client.handle_message(message)
+
+    assert_equal 1, raw_events.size
+    assert_equal :raw, raw_events[0].type
+    assert_equal message, raw_events[0].message
+  end
+
+  def test_both_raw_and_typed_events_emitted
+    client = Yaic::Client.new(host: "localhost", port: 6667)
+    events = []
+    client.on(:raw) { |event| events << event.type }
+    client.on(:message) { |event| events << event.type }
+
+    message = Yaic::Message.parse(":nick!user@host PRIVMSG #test :hello\r\n")
+    client.handle_message(message)
+
+    assert_includes events, :raw
+    assert_includes events, :message
+  end
+
   class MockSocket
     attr_accessor :connect_response
     attr_reader :written

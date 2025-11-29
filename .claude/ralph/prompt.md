@@ -37,6 +37,8 @@ docker run -d --name inspircd -p 6667:6667 -p 6697:6697 inspircd/inspircd-docker
 
 Configure tests to connect to localhost:6667 (plain) or localhost:6697 (SSL).
 
+**IMPORTANT**: Assume the IRC server is already running. Do NOT check if it's running before running tests. If tests fail with connection errors suggesting the server is not running, use `AskUserQuestion` to ask the user if the server is running.
+
 ## Project Style
 
 - No trailing whitespace

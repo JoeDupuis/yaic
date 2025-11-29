@@ -10,7 +10,7 @@
 
 ## Current State
 
-Features 01, 02, 03, and 04 complete. Ready for `05-event-system.md`.
+Features 01-05 complete. Ready for `06-privmsg-notice.md`.
 
 ## Feature Order
 
@@ -20,7 +20,7 @@ Features should be implemented in this order (dependencies noted):
 2. ~~`02-connection-socket.md`~~ ✅ - Depends on 01
 3. ~~`03-registration.md`~~ ✅ - Depends on 01, 02
 4. ~~`04-ping-pong.md`~~ ✅ - Depends on 01, 02, 03
-5. `05-event-system.md` - Depends on 01
+5. ~~`05-event-system.md`~~ ✅ - Depends on 01
 6. `06-privmsg-notice.md` - Depends on 01-05
 7. `07-join-part.md` - Depends on 01-05
 8. `08-quit.md` - Depends on 01, 02, 05
@@ -131,8 +131,31 @@ Features should be implemented in this order (dependencies noted):
 - PONG response uses Message class so spaces in token get proper `:` trailing prefix
 - Integration tests now use 5-second ping frequency for fast testing
 
+### Session 2025-11-28 (5)
+
+**Feature**: 05-event-system
+**Status**: Completed
+
+**What was done**:
+- Created `Yaic::Event` class with type, message, and dynamic attribute access via method_missing
+- Added `on(event_type, &block)` and `off(event_type)` methods to Client for handler registration
+- Implemented event dispatch with error handling (exceptions in handlers don't stop other handlers)
+- Added `:raw` event emitted for every message received
+- Added typed events: `:connect`, `:message`, `:notice`, `:join`, `:part`, `:quit`, `:kick`, `:nick`, `:topic`, `:mode`, `:error`
+- Event payloads match spec (source, target, text, channel, user, etc.)
+- Unit tests for Event class (7 tests)
+- Unit tests for handler registration and dispatch (17 new tests in client_test.rb)
+- Integration tests for connect, join, message, and raw events (4 tests)
+- All tests pass, linter clean, QA passed
+
+**Notes for next session**:
+- Event class available via `require "yaic"`
+- Public interface: `client.on(:event) { |e| ... }`, `client.off(:event)`
+- Event object: `event.type`, `event.message`, `event.<attribute>` (dynamic access)
+- `:disconnect` event not implemented (no event loop yet to detect disconnection)
+
 ---
 
 ## Suggested Next Feature
 
-Continue with `05-event-system.md` - Implements event callbacks for IRC events.
+Continue with `06-privmsg-notice.md` - Implements sending PRIVMSG and NOTICE messages.
