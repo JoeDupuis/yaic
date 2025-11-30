@@ -87,6 +87,8 @@ module Yaic
         handle_join(message)
       when "PART"
         handle_part(message)
+      when "QUIT"
+        handle_quit(message)
       when "NICK"
         handle_nick(message)
       when "KICK"
@@ -334,6 +336,17 @@ module Yaic
         else
           channel = @channels[channel_name]
           channel&.users&.delete(parter_nick)
+        end
+      end
+    end
+
+    def handle_quit(message)
+      quitter_nick = message.source&.nick
+      return unless quitter_nick
+
+      @channels_mutex.synchronize do
+        @channels.each_value do |channel|
+          channel.users.delete(quitter_nick)
         end
       end
     end
