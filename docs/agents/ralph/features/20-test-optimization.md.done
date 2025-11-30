@@ -1,0 +1,70 @@
+# Test Optimization - Planning
+
+## Description
+
+The test suite is slow (173 seconds) and needs optimization. This feature involves profiling the tests to identify slow ones, analyzing why they are slow, and creating an optimization plan for user approval.
+
+## Behavior
+
+### Phase 1: Profiling
+
+Run the full test suite with timing enabled using `rake test TESTOPTS="-v"` and capture:
+- Total time for each test file
+- Individual test method times
+- Identify the slowest tests (top 10 or anything over 1 second)
+
+### Phase 2: Analysis
+
+For each slow test, analyze:
+- Is it an integration test hitting a real IRC server?
+- Does it have unnecessary sleeps or timeouts?
+- Is it doing redundant setup?
+- Could it be parallelized?
+- Is it testing too much in one test?
+
+Document findings with specific line numbers and explanations.
+
+### Phase 3: Plan Creation
+
+Create a plan document at `docs/agents/ralph/plans/test-optimization-plan.md` containing:
+- Summary of profiling results (slowest tests with times)
+- Root causes identified
+- Proposed optimizations with expected impact
+- Risk assessment for each change
+- How test coverage will be preserved
+
+### Phase 4: User Approval
+
+Use `AskUserQuestion` tool to ask the user to review and approve the plan.
+
+If not approved, update the plan based on feedback and ask again.
+
+## Tests
+
+This feature is meta - it's about planning, not adding new functionality. Success criteria:
+
+**Profiling Output**
+- Generate a report showing test execution times
+- Identify tests taking > 500ms
+
+**Plan Document**
+- Plan exists at docs/agents/ralph/plans/test-optimization-plan.md
+- Contains profiling results with specific times
+- Contains proposed changes with rationale
+- Contains risk assessment
+
+## Implementation Notes
+
+- Use `rake test TESTOPTS="-v"` for timing
+- Use `bundle exec standardrb -A` for linting
+
+## Dependencies
+
+None - this is the first feature.
+
+## Next Features
+
+After this planning feature is complete, the following implementation features should be created:
+- 21-test-parallelization.md - Enable parallel test execution
+- 22-wait-until-pattern.md - Replace sleep/read_multiple with wait_until
+- 23-ping-test-optimization.md - Optimize the ping test with faster server config

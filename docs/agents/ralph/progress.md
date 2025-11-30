@@ -559,6 +559,43 @@ All 16 planned features are complete. The library now provides:
 
 ---
 
+### Session 2025-11-29 (22)
+
+**Feature**: 20-test-optimization (Planning)
+**Status**: Completed
+
+**What was done**:
+- Profiled test suite using `rake test TESTOPTS="-v"`:
+  - Total test time: 173 seconds
+  - 267 tests, 575 assertions
+  - 79 tests take >= 1 second (172.51s cumulative)
+- Analyzed slow tests and identified root causes:
+  - Fixed `sleep 0.5` statements waiting for IRC responses
+  - `read_multiple(socket, N)` always waits full timeout
+  - Sequential test execution despite independent tests
+- Created optimization plan at `docs/agents/ralph/plans/test-optimization-plan.md`
+- Created follow-up implementation features:
+  - `21-test-parallelization.md` - Enable parallel test execution
+  - `22-wait-until-pattern.md` - Replace sleep/read_multiple with wait_until
+  - `23-ping-test-optimization.md` - Optimize ping test with faster server config
+
+**Notes for next session**:
+- Plan approved by user with feedback to use `wait_until` pattern
+- Next feature: 21-test-parallelization.md
+
+---
+
+## Test Optimization Feature Queue
+
+| Feature | Status | Description |
+|---------|--------|-------------|
+| 20-test-optimization.md | ✅ complete | Planning and profiling |
+| 21-test-parallelization.md | pending | Enable parallel test execution |
+| 22-wait-until-pattern.md | pending | Replace sleep/read_multiple with wait_until |
+| 23-ping-test-optimization.md | pending | Optimize ping test |
+
+---
+
 ## Suggested Next Feature
 
-All planned features complete! The library now has a clean, blocking API with background event processing.
+Next: `21-test-parallelization.md` - Enable parallel test execution for 3-4x speedup.
