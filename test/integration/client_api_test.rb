@@ -124,7 +124,7 @@ class ClientApiIntegrationTest < Minitest::Test
       nickname: "test"
     )
 
-    assert_raises(Errno::ECONNREFUSED) do
+    assert_raises(Yaic::ConnectionError) do
       client.connect
     end
   end

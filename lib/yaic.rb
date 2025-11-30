@@ -13,4 +13,5 @@ require_relative "yaic/client"
 module Yaic
   class Error < StandardError; end
   class TimeoutError < Error; end
+  class ConnectionError < Error; end
 end

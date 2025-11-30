@@ -101,21 +101,21 @@ class SocketIntegrationTest < Minitest::Test
 
   def test_connection_refused
     socket = Yaic::Socket.new("localhost", 59999, ssl: false)
-    assert_raises(Errno::ECONNREFUSED) do
+    assert_raises(Yaic::ConnectionError) do
       socket.connect
     end
   end
 
-  def test_connection_timeout
+  def test_connection_failure
     socket = Yaic::Socket.new("10.255.255.1", 6667, ssl: false, connect_timeout: 1)
-    assert_raises(Errno::ETIMEDOUT, Errno::EHOSTUNREACH, Errno::ECONNREFUSED) do
+    assert_raises(Yaic::ConnectionError) do
       socket.connect
     end
   end
 
   def test_dns_resolution_failure
     socket = Yaic::Socket.new("this.host.does.not.exist.invalid", 6667, ssl: false)
-    assert_raises(SocketError) do
+    assert_raises(Yaic::ConnectionError) do
       socket.connect
     end
   end

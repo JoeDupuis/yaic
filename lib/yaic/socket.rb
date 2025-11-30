@@ -26,6 +26,8 @@ module Yaic
 
       @socket = @ssl ? wrap_ssl(tcp_socket) : tcp_socket
       @state = :connecting
+    rescue Errno::ETIMEDOUT, Errno::EHOSTUNREACH, Errno::ECONNREFUSED, IO::TimeoutError, SocketError => e
+      raise Yaic::ConnectionError, e.message
     end
 
     def disconnect
