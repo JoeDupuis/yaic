@@ -125,7 +125,7 @@ class PingPongIntegrationTest < Minitest::Test
     assert client.connected?
 
     initial_last_received = client.last_received_at
-    wait_until(timeout: 10) { client.last_received_at > initial_last_received }
+    wait_until(timeout: 5) { client.last_received_at > initial_last_received }
 
     assert client.last_received_at > initial_last_received, "Client should continue receiving messages (PING handled)"
     refute client.connection_stale?
