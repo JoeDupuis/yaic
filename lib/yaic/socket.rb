@@ -9,11 +9,11 @@ module Yaic
       @monitor.synchronize { @state }
     end
 
-    def initialize(host, port, ssl: false, verify_mode: nil, connect_timeout: 30)
+    def initialize(host, port, ssl: false, verify_ssl: true, connect_timeout: 30)
       @host = host
       @port = port
       @ssl = ssl
-      @verify_mode = verify_mode || OpenSSL::SSL::VERIFY_NONE
+      @verify_mode = verify_ssl ? OpenSSL::SSL::VERIFY_PEER : OpenSSL::SSL::VERIFY_NONE
       @connect_timeout = connect_timeout
 
       @socket = nil

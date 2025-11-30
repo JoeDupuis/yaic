@@ -44,7 +44,7 @@ module Yaic
       @monitor.synchronize { @channels.dup }
     end
 
-    def initialize(port:, host: nil, nick: nil, user: nil, realname: nil, password: nil, ssl: false, server: nil, nickname: nil, username: nil, verbose: false)
+    def initialize(port:, host: nil, nick: nil, user: nil, realname: nil, password: nil, ssl: false, verify_ssl: true, server: nil, nickname: nil, username: nil, verbose: false)
       @server = server || host
       @port = port
       @nick = nickname || nick
@@ -52,6 +52,7 @@ module Yaic
       @realname = realname || @nick
       @password = password
       @ssl = ssl
+      @verify_ssl = verify_ssl
       @verbose = verbose
 
       @socket = nil
@@ -73,7 +74,7 @@ module Yaic
     def connect(timeout: DEFAULT_CONNECT_TIMEOUT)
       log "Connecting to #{@server}:#{@port}#{" (SSL)" if @ssl}..."
       sock = @monitor.synchronize do
-        @socket ||= Socket.new(@server, @port, ssl: @ssl)
+        @socket ||= Socket.new(@server, @port, ssl: @ssl, verify_ssl: @verify_ssl)
       end
       sock.connect
       send_registration

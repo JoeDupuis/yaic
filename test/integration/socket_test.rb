@@ -63,7 +63,7 @@ class SocketIntegrationTest < Minitest::Test
 
   def test_connect_with_ssl
     require_ssl_server_available
-    socket = Yaic::Socket.new("localhost", 6697, ssl: true, verify_mode: OpenSSL::SSL::VERIFY_NONE)
+    socket = Yaic::Socket.new("localhost", 6697, ssl: true, verify_ssl: false)
     socket.connect
     assert_equal :connecting, socket.state
   ensure
@@ -72,7 +72,7 @@ class SocketIntegrationTest < Minitest::Test
 
   def test_ssl_read_write
     require_ssl_server_available
-    socket = Yaic::Socket.new("localhost", 6697, ssl: true, verify_mode: OpenSSL::SSL::VERIFY_NONE)
+    socket = Yaic::Socket.new("localhost", 6697, ssl: true, verify_ssl: false)
     socket.connect
 
     socket.write("NICK #{@test_nick}")
@@ -91,7 +91,7 @@ class SocketIntegrationTest < Minitest::Test
 
   def test_ssl_verify_peer_fails_self_signed
     require_ssl_server_available
-    socket = Yaic::Socket.new("localhost", 6697, ssl: true, verify_mode: OpenSSL::SSL::VERIFY_PEER)
+    socket = Yaic::Socket.new("localhost", 6697, ssl: true)
     assert_raises(OpenSSL::SSL::SSLError) do
       socket.connect
     end
