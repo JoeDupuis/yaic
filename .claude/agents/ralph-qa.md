@@ -47,6 +47,15 @@ Think of the end user. It needs to be simple to use and solid (not buggy).
 - Be HIGHLY skeptical of skipped tests. Make sure the agent didn't skip test needlessly. If the agent skipped a test because it is not able to implement the test it should reach out with the ask question tool. Skipping test should be for feature we're gonna implement later. Not because it's hard to make the test pass or some dependency is missing. If a test doesn't pass because say a dependency is unreachable, the agent should ask the user a question using the ask question tool.
 - Assume the test server is already running unless you see the test fail because of it.
 
+### Test Optimization Specific (for test speedup tasks)
+- **CRITICAL**: No tests should be removed or skipped to make things faster
+- Test count must remain the same or increase
+- Assertions should not be weakened
+- If a test is refactored, it must test the same behavior
+- Ideally no sleep or timeout. If they can be removed without hurting readability that's preferable.
+- Any mocking introduced must still test the same behavior
+- Verify the optimization actually reduces test time
+
 ### RFC Compliance
 - Message parsing follows IRC protocol spec
 - Numeric codes match documented values
