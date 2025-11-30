@@ -647,6 +647,24 @@ class ClientTest < Minitest::Test
     assert client.channels["#test"].users.key?("testnick")
   end
 
+  def test_other_user_join_adds_user_to_channel
+    mock_socket = MockSocket.new
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    client.instance_variable_set(:@socket, mock_socket)
+    client.instance_variable_set(:@state, :connected)
+
+    join_message = Yaic::Message.parse(":testnick!user@host JOIN #test\r\n")
+    client.handle_message(join_message)
+
+    refute client.channels["#test"].users.key?("othernick")
+
+    other_join = Yaic::Message.parse(":othernick!user@host JOIN #test\r\n")
+    client.handle_message(other_join)
+
+    assert client.channels["#test"].users.key?("othernick")
+    assert_instance_of Set, client.channels["#test"].users["othernick"]
+  end
+
   def test_quit_formats_correctly_without_reason
     mock_socket = MockSocket.new
     client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")

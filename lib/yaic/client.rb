@@ -314,9 +314,11 @@ module Yaic
       joiner_nick = message.source&.nick
       return unless joiner_nick && channel_name
 
-      if joiner_nick == @nick
-        @channels_mutex.synchronize do
+      @channels_mutex.synchronize do
+        if joiner_nick == @nick
           @channels[channel_name] = Channel.new(channel_name)
+        elsif (channel = @channels[channel_name])
+          channel.users[joiner_nick] = Set.new
         end
       end
     end
