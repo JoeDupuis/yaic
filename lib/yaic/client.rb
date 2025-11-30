@@ -326,9 +326,12 @@ module Yaic
       parter_nick = message.source&.nick
       return unless parter_nick && channel_name
 
-      if parter_nick == @nick
-        @channels_mutex.synchronize do
+      @channels_mutex.synchronize do
+        if parter_nick == @nick
           @channels.delete(channel_name)
+        else
+          channel = @channels[channel_name]
+          channel&.users&.delete(parter_nick)
         end
       end
     end

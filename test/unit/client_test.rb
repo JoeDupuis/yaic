@@ -623,6 +623,30 @@ class ClientTest < Minitest::Test
     assert client.channels.key?("#test")
   end
 
+  def test_other_user_part_removes_user_from_channel
+    mock_socket = MockSocket.new
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    client.instance_variable_set(:@socket, mock_socket)
+    client.instance_variable_set(:@state, :connected)
+
+    join_message = Yaic::Message.parse(":testnick!user@host JOIN #test\r\n")
+    client.handle_message(join_message)
+
+    names_message = Yaic::Message.parse(":server 353 testnick = #test :testnick othernick\r\n")
+    client.handle_message(names_message)
+    endofnames_message = Yaic::Message.parse(":server 366 testnick #test :End of /NAMES list\r\n")
+    client.handle_message(endofnames_message)
+
+    assert client.channels["#test"].users.key?("othernick")
+
+    part_message = Yaic::Message.parse(":othernick!user@host PART #test :Bye\r\n")
+    client.handle_message(part_message)
+
+    assert client.channels.key?("#test")
+    refute client.channels["#test"].users.key?("othernick")
+    assert client.channels["#test"].users.key?("testnick")
+  end
+
   def test_quit_formats_correctly_without_reason
     mock_socket = MockSocket.new
     client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")

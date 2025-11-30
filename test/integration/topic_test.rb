@@ -111,7 +111,33 @@ class TopicIntegrationTest < Minitest::Test
   end
 
   def test_set_topic_without_permission
-    skip "InspIRCd 4 doesn't auto-op channel creators. Test requires ops to set +t mode. See 10-topic.md for details."
+    oper_client = create_connected_client(unique_nick("op"))
+    oper_client.raw("OPER testoper testpass\r\n")
+
+    oper_confirmed = false
+    oper_client.on(:raw) { |e| oper_confirmed = true if e.message.command == "381" }
+    wait_until { oper_confirmed }
+
+    oper_client.join(@test_channel)
+
+    mode_set = false
+    oper_client.on(:mode) { mode_set = true }
+    oper_client.raw("SAMODE #{@test_channel} +t\r\n")
+    wait_until { mode_set }
+
+    regular_client = create_connected_client(@test_nick)
+    regular_client.join(@test_channel)
+
+    error_received = false
+    regular_client.on(:error) { |e| error_received = true if e.numeric == 482 }
+
+    regular_client.topic(@test_channel, "Should fail")
+    wait_until { error_received }
+
+    assert error_received, "Should receive ERR_CHANOPRIVSNEEDED (482)"
+  ensure
+    oper_client&.quit
+    regular_client&.quit
   end
 
   def test_receive_topic_change
