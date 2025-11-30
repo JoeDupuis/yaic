@@ -1594,6 +1594,184 @@ class ClientTest < Minitest::Test
     end
   end
 
+  def test_verbose_false_produces_no_output
+    mock_socket = BlockingMockSocket.new
+    mock_socket.responses = [
+      ":server 001 testnick :Welcome\r\n"
+    ]
+
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick", user: "testuser", realname: "Test User", verbose: false)
+    client.instance_variable_set(:@socket, mock_socket)
+
+    output = capture_stderr { client.connect }
+
+    assert_empty output
+  ensure
+    client&.quit
+  end
+
+  def test_verbose_true_logs_connection
+    mock_socket = BlockingMockSocket.new
+    mock_socket.responses = [
+      ":server 001 testnick :Welcome\r\n"
+    ]
+
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick", user: "testuser", realname: "Test User", verbose: true)
+    client.instance_variable_set(:@socket, mock_socket)
+
+    output = capture_stderr { client.connect }
+
+    assert_includes output, "[YAIC] Connecting to localhost:6667..."
+    assert_includes output, "[YAIC] Connected"
+  ensure
+    client&.quit
+  end
+
+  def test_verbose_true_logs_ssl_connection
+    mock_socket = BlockingMockSocket.new
+    mock_socket.responses = [
+      ":server 001 testnick :Welcome\r\n"
+    ]
+
+    client = Yaic::Client.new(host: "localhost", port: 6697, nick: "testnick", user: "testuser", realname: "Test User", ssl: true, verbose: true)
+    client.instance_variable_set(:@socket, mock_socket)
+
+    output = capture_stderr { client.connect }
+
+    assert_includes output, "[YAIC] Connecting to localhost:6697 (SSL)..."
+  ensure
+    client&.quit
+  end
+
+  def test_verbose_true_logs_join
+    mock_socket = BlockingMockSocket.new
+    mock_socket.responses = [
+      ":server 001 testnick :Welcome\r\n"
+    ]
+    mock_socket.post_connect_responses = [
+      ":testnick!user@host JOIN #test\r\n",
+      ":server 366 testnick #test :End\r\n"
+    ]
+
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick", user: "testuser", realname: "Test User", verbose: true)
+    client.instance_variable_set(:@socket, mock_socket)
+
+    client.connect
+    mock_socket.trigger_post_connect
+
+    output = capture_stderr { client.join("#test") }
+
+    assert_includes output, "[YAIC] Joining #test..."
+    assert_includes output, "[YAIC] Joined #test"
+  ensure
+    client&.quit
+  end
+
+  def test_verbose_true_logs_part
+    mock_socket = BlockingMockSocket.new
+    mock_socket.responses = [
+      ":server 001 testnick :Welcome\r\n"
+    ]
+    mock_socket.post_connect_responses = [
+      ":testnick!user@host JOIN #test\r\n",
+      ":server 366 testnick #test :End\r\n"
+    ]
+
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick", user: "testuser", realname: "Test User", verbose: true)
+    client.instance_variable_set(:@socket, mock_socket)
+
+    client.connect
+    mock_socket.trigger_post_connect
+    client.join("#test")
+
+    mock_socket.post_connect_responses = [
+      ":testnick!user@host PART #test\r\n"
+    ]
+    mock_socket.trigger_post_connect
+
+    output = capture_stderr { client.part("#test") }
+
+    assert_includes output, "[YAIC] Parting #test..."
+    assert_includes output, "[YAIC] Parted #test"
+  ensure
+    client&.quit
+  end
+
+  def test_verbose_true_logs_disconnect
+    mock_socket = BlockingMockSocket.new
+    mock_socket.responses = [
+      ":server 001 testnick :Welcome\r\n"
+    ]
+
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick", user: "testuser", realname: "Test User", verbose: true)
+    client.instance_variable_set(:@socket, mock_socket)
+
+    client.connect
+
+    output = capture_stderr { client.quit }
+
+    assert_includes output, "[YAIC] Disconnected"
+  end
+
+  def test_verbose_true_logs_who
+    mock_socket = BlockingMockSocket.new
+    mock_socket.responses = [
+      ":server 001 testnick :Welcome\r\n"
+    ]
+
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick", user: "testuser", realname: "Test User", verbose: true)
+    client.instance_variable_set(:@socket, mock_socket)
+
+    client.connect
+
+    mock_socket.post_connect_responses = [
+      ":server 352 testnick #test user host server nick H :0 Real Name\r\n",
+      ":server 315 testnick #test :End of WHO\r\n"
+    ]
+    mock_socket.trigger_post_connect
+
+    output = capture_stderr { client.who("#test") }
+
+    assert_includes output, "[YAIC] Sending WHO #test..."
+    assert_includes output, "[YAIC] WHO complete (1 results)"
+  ensure
+    client&.quit
+  end
+
+  def test_verbose_true_logs_whois
+    mock_socket = BlockingMockSocket.new
+    mock_socket.responses = [
+      ":server 001 testnick :Welcome\r\n"
+    ]
+
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick", user: "testuser", realname: "Test User", verbose: true)
+    client.instance_variable_set(:@socket, mock_socket)
+
+    client.connect
+
+    mock_socket.post_connect_responses = [
+      ":server 311 testnick othernick user host * :Real Name\r\n",
+      ":server 318 testnick othernick :End of WHOIS\r\n"
+    ]
+    mock_socket.trigger_post_connect
+
+    output = capture_stderr { client.whois("othernick") }
+
+    assert_includes output, "[YAIC] Sending WHOIS othernick..."
+    assert_includes output, "[YAIC] WHOIS complete"
+  ensure
+    client&.quit
+  end
+
+  def capture_stderr
+    original_stderr = $stderr
+    $stderr = StringIO.new
+    yield
+    $stderr.string
+  ensure
+    $stderr = original_stderr
+  end
+
   class MockSocket
     attr_accessor :connect_response
     attr_reader :written

@@ -28,7 +28,7 @@ module Yaic
 
     attr_reader :state, :isupport, :last_received_at, :channels, :server
 
-    def initialize(port:, host: nil, nick: nil, user: nil, realname: nil, password: nil, ssl: false, server: nil, nickname: nil, username: nil)
+    def initialize(port:, host: nil, nick: nil, user: nil, realname: nil, password: nil, ssl: false, server: nil, nickname: nil, username: nil, verbose: false)
       @server = server || host
       @port = port
       @nick = nickname || nick
@@ -36,6 +36,7 @@ module Yaic
       @realname = realname || @nick
       @password = password
       @ssl = ssl
+      @verbose = verbose
 
       @socket = nil
       @state = :disconnected
@@ -56,12 +57,14 @@ module Yaic
     end
 
     def connect(timeout: DEFAULT_CONNECT_TIMEOUT)
+      log "Connecting to #{@server}:#{@port}#{" (SSL)" if @ssl}..."
       @socket ||= Socket.new(@server, @port, ssl: @ssl)
       @socket.connect
       send_registration
       set_state(:registering)
       start_read_loop
       wait_until(timeout: timeout) { connected? }
+      log "Connected"
     end
 
     def connected?
@@ -164,17 +167,21 @@ module Yaic
     end
 
     def join(channel, key = nil, timeout: DEFAULT_OPERATION_TIMEOUT)
+      log "Joining #{channel}..."
       params = key ? [channel, key] : [channel]
       message = Message.new(command: "JOIN", params: params)
       @socket.write(message.to_s)
       wait_until(timeout: timeout) { channel_joined?(channel) }
+      log "Joined #{channel}"
     end
 
     def part(channel, reason = nil, timeout: DEFAULT_OPERATION_TIMEOUT)
+      log "Parting #{channel}..."
       params = reason ? [channel, reason] : [channel]
       message = Message.new(command: "PART", params: params)
       @socket.write(message.to_s)
       wait_until(timeout: timeout) { !channel_joined?(channel) }
+      log "Parted #{channel}"
     end
 
     def quit(reason = nil)
@@ -186,6 +193,7 @@ module Yaic
       @read_thread&.join(5)
       @socket&.disconnect
       emit(:disconnect, nil)
+      log "Disconnected"
     end
 
     def nick(new_nick = nil, timeout: DEFAULT_OPERATION_TIMEOUT)
@@ -223,6 +231,7 @@ module Yaic
     end
 
     def who(mask, timeout: DEFAULT_OPERATION_TIMEOUT)
+      log "Sending WHO #{mask}..."
       @pending_who_results[mask] = []
       @pending_who_complete[mask] = false
 
@@ -231,12 +240,15 @@ module Yaic
 
       wait_until(timeout: timeout) { @pending_who_complete[mask] }
 
-      @pending_who_results.delete(mask)
+      results = @pending_who_results.delete(mask)
+      log "WHO complete (#{results.size} results)"
+      results
     ensure
       @pending_who_complete.delete(mask)
     end
 
     def whois(nick, timeout: DEFAULT_OPERATION_TIMEOUT)
+      log "Sending WHOIS #{nick}..."
       @pending_whois_complete[nick] = false
 
       message = Message.new(command: "WHOIS", params: [nick])
@@ -244,7 +256,9 @@ module Yaic
 
       wait_until(timeout: timeout) { @pending_whois_complete[nick] }
 
-      @pending_whois.delete(nick)
+      result = @pending_whois.delete(nick)
+      log "WHOIS complete"
+      result
     ensure
       @pending_whois_complete.delete(nick)
     end
@@ -254,6 +268,11 @@ module Yaic
     end
 
     private
+
+    def log(message)
+      return unless @verbose
+      warn "[YAIC] #{message}"
+    end
 
     def set_state(new_state)
       @state_mutex.synchronize { @state = new_state }

@@ -683,6 +683,49 @@ All 16 planned features are complete. The library now provides:
 
 ---
 
+### Session 2025-11-29 (27)
+
+**Feature**: 25-verbose-mode
+**Status**: Completed
+
+**What was done**:
+- Added `verbose:` parameter to `Client#initialize` (defaults to false)
+- Added private `log(message)` helper method that outputs to `$stderr` with `[YAIC]` prefix
+- Added logging calls to blocking operations:
+  - `connect`: "Connecting to host:port (SSL)..." and "Connected"
+  - `join`: "Joining #channel..." and "Joined #channel"
+  - `part`: "Parting #channel..." and "Parted #channel"
+  - `quit`: "Disconnected"
+  - `who`: "Sending WHO mask..." and "WHO complete (N results)"
+  - `whois`: "Sending WHOIS nick..." and "WHOIS complete"
+- Unit tests: 8 new tests for verbose mode output
+- Integration tests: 2 new tests for full verbose workflow
+- All 289 tests pass, 671 assertions, 0 failures, 0 errors, 0 skips
+
+**Notes for next session**:
+- `verbose: true` enables debug output to stderr
+- Output format: `[YAIC] <message>`
+- SSL connections show "(SSL)" suffix in connect message
+- All 25 planned features are now complete
+
+---
+
 ## Suggested Next Feature
 
-Next feature to implement: `25-verbose-mode.md`
+All features complete! The library now provides:
+- IRC message parsing and serialization
+- TCP/SSL connection management
+- Registration (NICK, USER, PASS)
+- PING/PONG handling
+- Event system with handlers
+- PRIVMSG/NOTICE
+- JOIN/PART with channel tracking
+- QUIT with disconnect events
+- NICK changes with tracking
+- TOPIC get/set
+- KICK
+- NAMES with user prefix parsing
+- MODE for channels and users
+- WHO/WHOIS queries (blocking with return values)
+- Client API with convenience methods
+- Verbose mode for debugging
