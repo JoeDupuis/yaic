@@ -3,13 +3,17 @@
 require "test_helper"
 
 class JoinPartIntegrationTest < Minitest::Test
+  include UniqueTestIdentifiers
+
+  parallelize_me!
+
   def setup
     require_server_available
     @host = "localhost"
     @port = 6667
-    @test_nick = "t#{Process.pid}#{Time.now.to_i % 10000}"
-    @test_nick2 = "u#{Process.pid}#{Time.now.to_i % 10000}"
-    @test_channel = "#test#{Process.pid}#{Time.now.to_i % 10000}"
+    @test_nick = unique_nick
+    @test_nick2 = unique_nick("u")
+    @test_channel = unique_channel
   end
 
   def test_join_single_channel
@@ -63,10 +67,10 @@ class JoinPartIntegrationTest < Minitest::Test
   def test_join_creates_channel_if_not_exists
     client = create_connected_client(@test_nick)
 
-    unique_channel = "#new#{Process.pid}#{Time.now.to_i}"
-    client.join(unique_channel)
+    new_channel = unique_channel("#new")
+    client.join(new_channel)
 
-    assert client.channels.key?(unique_channel)
+    assert client.channels.key?(new_channel)
   ensure
     client&.quit
   end
@@ -104,7 +108,7 @@ class JoinPartIntegrationTest < Minitest::Test
     error_event = nil
     client.on(:error) { |e| error_event = e if [403, 442].include?(e.numeric) }
 
-    message = Yaic::Message.new(command: "PART", params: ["#notinchannel#{Process.pid}"])
+    message = Yaic::Message.new(command: "PART", params: [unique_channel("#notin")])
     client.raw(message.to_s)
     sleep 0.2
 

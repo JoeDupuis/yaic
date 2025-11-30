@@ -3,19 +3,23 @@
 require "test_helper"
 
 class NickIntegrationTest < Minitest::Test
+  include UniqueTestIdentifiers
+
+  parallelize_me!
+
   def setup
     require_server_available
     @host = "localhost"
     @port = 6667
-    @test_nick = "t#{Process.pid}#{Time.now.to_i % 10000}"
-    @test_nick2 = "u#{Process.pid}#{Time.now.to_i % 10000}"
-    @test_channel = "#test#{Process.pid}#{Time.now.to_i % 10000}"
+    @test_nick = unique_nick
+    @test_nick2 = unique_nick("u")
+    @test_channel = unique_channel
   end
 
   def test_change_own_nick
     client = create_connected_client(@test_nick)
 
-    new_nick = "new#{Process.pid}#{Time.now.to_i % 10000}"
+    new_nick = unique_nick("new")
     client.nick(new_nick)
 
     assert_equal new_nick, client.nick
@@ -67,7 +71,7 @@ class NickIntegrationTest < Minitest::Test
     nick_event = nil
     client1.on(:nick) { |event| nick_event = event if event.old_nick == @test_nick2 }
 
-    new_nick = "r#{Process.pid}#{Time.now.to_i % 10000}"
+    new_nick = unique_nick("r")
     client2.nick(new_nick)
     sleep 0.5
 

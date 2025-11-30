@@ -3,13 +3,17 @@
 require "test_helper"
 
 class ClientApiIntegrationTest < Minitest::Test
+  include UniqueTestIdentifiers
+
+  parallelize_me!
+
   def setup
     @host = "localhost"
     @port = 6667
     require_server_available
-    @test_nick = "t#{Process.pid}#{Time.now.to_i % 10000}"
-    @test_nick2 = "u#{Process.pid}#{Time.now.to_i % 10000}"
-    @test_channel = "#api#{Process.pid}#{rand(1000)}"
+    @test_nick = unique_nick
+    @test_nick2 = unique_nick("u")
+    @test_channel = unique_channel("#api")
   end
 
   def test_connect_and_receive_welcome

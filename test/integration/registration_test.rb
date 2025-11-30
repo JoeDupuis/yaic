@@ -4,11 +4,15 @@ require "test_helper"
 require "timeout"
 
 class RegistrationIntegrationTest < Minitest::Test
+  include UniqueTestIdentifiers
+
+  parallelize_me!
+
   def setup
     require_server_available
     @host = "localhost"
     @port = 6667
-    @test_nick = "t#{Process.pid}#{Time.now.to_i % 10000}"
+    @test_nick = unique_nick
   end
 
   def test_register_with_nickname_and_user
@@ -27,7 +31,7 @@ class RegistrationIntegrationTest < Minitest::Test
   end
 
   def test_nick_already_in_use
-    nick = "dup#{Process.pid}#{rand(1000)}"
+    nick = unique_nick("dup")
 
     client1 = Yaic::Client.new(host: @host, port: @port, nick: nick, user: "user1", realname: "User One")
     client1.connect

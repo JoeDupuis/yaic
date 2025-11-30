@@ -3,13 +3,17 @@
 require "test_helper"
 
 class NamesIntegrationTest < Minitest::Test
+  include UniqueTestIdentifiers
+
+  parallelize_me!
+
   def setup
     require_server_available
     @host = "localhost"
     @port = 6667
-    @test_nick = "t#{Process.pid}#{Time.now.to_i % 10000}"
-    @test_nick2 = "u#{Process.pid}#{Time.now.to_i % 10000}"
-    @test_channel = "#test#{Process.pid}#{Time.now.to_i % 10000}"
+    @test_nick = unique_nick
+    @test_nick2 = unique_nick("u")
+    @test_channel = unique_channel
   end
 
   def test_get_names
@@ -96,7 +100,7 @@ class NamesIntegrationTest < Minitest::Test
 
     clients = []
     4.times do |i|
-      nick = "x#{Process.pid}#{i}#{Time.now.to_i % 10000}"
+      nick = unique_nick("x#{i}")
       c = create_connected_client(nick)
       c.join(@test_channel)
       clients << c

@@ -3,13 +3,17 @@
 require "test_helper"
 
 class TopicIntegrationTest < Minitest::Test
+  include UniqueTestIdentifiers
+
+  parallelize_me!
+
   def setup
     require_server_available
     @host = "localhost"
     @port = 6667
-    @test_nick = "t#{Process.pid}#{Time.now.to_i % 10000}"
-    @test_nick2 = "u#{Process.pid}#{Time.now.to_i % 10000}"
-    @test_channel = "#test#{Process.pid}#{Time.now.to_i % 10000}"
+    @test_nick = unique_nick
+    @test_nick2 = unique_nick("u")
+    @test_channel = unique_channel
   end
 
   def test_get_topic
@@ -43,8 +47,8 @@ class TopicIntegrationTest < Minitest::Test
   def test_get_topic_when_none_set
     client = create_connected_client(@test_nick)
 
-    unique_channel = "#notopic#{Process.pid}#{Time.now.to_i}"
-    client.join(unique_channel)
+    notopic_channel = unique_channel("#notopic")
+    client.join(notopic_channel)
 
     notopic_received = false
 
@@ -55,7 +59,7 @@ class TopicIntegrationTest < Minitest::Test
       end
     end
 
-    client.topic(unique_channel)
+    client.topic(notopic_channel)
 
     sleep 0.5
 

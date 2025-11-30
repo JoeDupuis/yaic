@@ -4,11 +4,15 @@ require "test_helper"
 require "timeout"
 
 class PingPongIntegrationTest < Minitest::Test
+  include UniqueTestIdentifiers
+
+  parallelize_me!
+
   def setup
     require_server_available
     @host = "localhost"
     @port = 6667
-    @test_nick = "t#{Process.pid}#{Time.now.to_i % 10000}"
+    @test_nick = unique_nick
   end
 
   def test_respond_to_ping_when_connected

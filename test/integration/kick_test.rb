@@ -3,13 +3,17 @@
 require "test_helper"
 
 class KickIntegrationTest < Minitest::Test
+  include UniqueTestIdentifiers
+
+  parallelize_me!
+
   def setup
     require_server_available
     @host = "localhost"
     @port = 6667
-    @test_nick = "t#{Process.pid}#{Time.now.to_i % 10000}"
-    @test_nick2 = "u#{Process.pid}#{Time.now.to_i % 10000}"
-    @test_channel = "#test#{Process.pid}#{Time.now.to_i % 10000}"
+    @test_nick = unique_nick
+    @test_nick2 = unique_nick("u")
+    @test_channel = unique_channel
   end
 
   def test_kick_user
@@ -115,7 +119,7 @@ class KickIntegrationTest < Minitest::Test
     client2 = create_connected_client(@test_nick2)
     client2.join(@test_channel)
 
-    third_nick = "v#{Process.pid}#{Time.now.to_i % 10000}"
+    third_nick = unique_nick("v")
     client3 = create_connected_client(third_nick)
     client3.join(@test_channel)
 
