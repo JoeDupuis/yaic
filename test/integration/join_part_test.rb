@@ -29,15 +29,17 @@ class JoinPartIntegrationTest < Minitest::Test
   def test_join_channel_with_topic
     client1 = create_connected_client(@test_nick)
     client1.join(@test_channel)
+    topic_set = false
+    client1.on(:topic) { topic_set = true }
     client1.topic(@test_channel, "Test Topic")
-    sleep 0.2
+    wait_until { topic_set }
 
     client2 = create_connected_client(@test_nick2)
     topic_event = nil
     client2.on(:topic) { |e| topic_event = e }
 
     client2.join(@test_channel)
-    sleep 0.2
+    wait_until { topic_event }
 
     refute_nil topic_event
     assert_equal "Test Topic", topic_event.topic
@@ -55,7 +57,7 @@ class JoinPartIntegrationTest < Minitest::Test
 
     message = Yaic::Message.new(command: "JOIN", params: ["#{chan_a},#{chan_b},#{chan_c}"])
     client.raw(message.to_s)
-    sleep 1
+    wait_until { client.channels.key?(chan_a) && client.channels.key?(chan_b) && client.channels.key?(chan_c) }
 
     assert client.channels.key?(chan_a)
     assert client.channels.key?(chan_b)
@@ -94,7 +96,7 @@ class JoinPartIntegrationTest < Minitest::Test
     client.on(:part) { |e| part_event = e }
 
     client.part(@test_channel, "Going home")
-    sleep 0.1
+    wait_until { part_event }
 
     refute_nil part_event
     assert_equal @test_channel, part_event.channel
@@ -110,7 +112,7 @@ class JoinPartIntegrationTest < Minitest::Test
 
     message = Yaic::Message.new(command: "PART", params: [unique_channel("#notin")])
     client.raw(message.to_s)
-    sleep 0.2
+    wait_until { error_event }
 
     refute_nil error_event
     assert_includes [403, 442], error_event.numeric
@@ -143,7 +145,7 @@ class JoinPartIntegrationTest < Minitest::Test
 
     client2 = create_connected_client(@test_nick2)
     client2.join(@test_channel)
-    sleep 0.2
+    wait_until { other_join_event }
 
     refute_nil other_join_event
     assert_equal :join, other_join_event.type
@@ -176,14 +178,16 @@ class JoinPartIntegrationTest < Minitest::Test
     client1.join(@test_channel)
 
     client2 = create_connected_client(@test_nick2)
+    client2_joined = false
+    client1.on(:join) { |e| client2_joined = true if e.user.nick == @test_nick2 }
     client2.join(@test_channel)
-    sleep 0.2
+    wait_until { client2_joined }
 
     other_part_event = nil
     client1.on(:part) { |e| other_part_event = e if e.user.nick == @test_nick2 }
 
     client2.part(@test_channel)
-    sleep 0.2
+    wait_until { other_part_event }
 
     refute_nil other_part_event
     assert_equal :part, other_part_event.type

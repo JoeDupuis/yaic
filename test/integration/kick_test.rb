@@ -23,8 +23,14 @@ class KickIntegrationTest < Minitest::Test
 
     client1.join(@test_channel)
 
+    samode_confirmed = false
+    client1.on(:raw) do |event|
+      msg = event.message
+      samode_confirmed = true if msg&.command == "MODE" && msg.params.include?("+o")
+    end
+
     client1.raw("SAMODE #{@test_channel} +o #{@test_nick}")
-    sleep 0.5
+    wait_until { samode_confirmed }
 
     client2 = create_connected_client(@test_nick2)
     client2.join(@test_channel)
@@ -33,7 +39,7 @@ class KickIntegrationTest < Minitest::Test
     client1.on(:kick) { |_event| kick_received = true }
 
     client1.kick(@test_channel, @test_nick2)
-    sleep 0.5
+    wait_until { kick_received }
 
     assert kick_received, "Should receive KICK confirmation"
   ensure
@@ -48,8 +54,14 @@ class KickIntegrationTest < Minitest::Test
 
     client1.join(@test_channel)
 
+    samode_confirmed = false
+    client1.on(:raw) do |event|
+      msg = event.message
+      samode_confirmed = true if msg&.command == "MODE" && msg.params.include?("+o")
+    end
+
     client1.raw("SAMODE #{@test_channel} +o #{@test_nick}")
-    sleep 0.5
+    wait_until { samode_confirmed }
 
     client2 = create_connected_client(@test_nick2)
     client2.join(@test_channel)
@@ -58,7 +70,7 @@ class KickIntegrationTest < Minitest::Test
     client1.on(:kick) { |event| kick_reason = event.reason }
 
     client1.kick(@test_channel, @test_nick2, "Breaking rules")
-    sleep 0.5
+    wait_until { kick_reason }
 
     assert_equal "Breaking rules", kick_reason
   ensure
@@ -77,7 +89,7 @@ class KickIntegrationTest < Minitest::Test
     client2.on(:error) { |event| error_received = true if event.numeric == 482 }
 
     client2.kick(@test_channel, @test_nick)
-    sleep 0.5
+    wait_until { error_received }
 
     assert error_received, "Should receive 482 ERR_CHANOPRIVSNEEDED"
   ensure
@@ -92,14 +104,20 @@ class KickIntegrationTest < Minitest::Test
 
     client1.join(@test_channel)
 
+    samode_confirmed = false
+    client1.on(:raw) do |event|
+      msg = event.message
+      samode_confirmed = true if msg&.command == "MODE" && msg.params.include?("+o")
+    end
+
     client1.raw("SAMODE #{@test_channel} +o #{@test_nick}")
-    sleep 0.5
+    wait_until { samode_confirmed }
 
     error_received = false
     client1.on(:error) { |event| error_received = true if [441, 401].include?(event.numeric) }
 
     client1.kick(@test_channel, "nobodyhere")
-    sleep 0.5
+    wait_until { error_received }
 
     assert error_received, "Should receive 441 ERR_USERNOTINCHANNEL or 401 ERR_NOSUCHNICK"
   ensure
@@ -113,8 +131,14 @@ class KickIntegrationTest < Minitest::Test
 
     client1.join(@test_channel)
 
+    samode_confirmed = false
+    client1.on(:raw) do |event|
+      msg = event.message
+      samode_confirmed = true if msg&.command == "MODE" && msg.params.include?("+o")
+    end
+
     client1.raw("SAMODE #{@test_channel} +o #{@test_nick}")
-    sleep 0.5
+    wait_until { samode_confirmed }
 
     client2 = create_connected_client(@test_nick2)
     client2.join(@test_channel)
@@ -127,7 +151,7 @@ class KickIntegrationTest < Minitest::Test
     client2.on(:kick) { |event| kick_event = event }
 
     client1.raw("KICK #{@test_channel} #{third_nick} :Goodbye")
-    sleep 0.5
+    wait_until { kick_event }
 
     refute_nil kick_event
     assert_equal :kick, kick_event.type
@@ -148,8 +172,14 @@ class KickIntegrationTest < Minitest::Test
 
     client1.join(@test_channel)
 
+    samode_confirmed = false
+    client1.on(:raw) do |event|
+      msg = event.message
+      samode_confirmed = true if msg&.command == "MODE" && msg.params.include?("+o")
+    end
+
     client1.raw("SAMODE #{@test_channel} +o #{@test_nick}")
-    sleep 0.5
+    wait_until { samode_confirmed }
 
     client2 = create_connected_client(@test_nick2)
     client2.join(@test_channel)
@@ -160,7 +190,7 @@ class KickIntegrationTest < Minitest::Test
     assert client2.channels.key?(@test_channel)
 
     client1.raw("KICK #{@test_channel} #{@test_nick2} :You are kicked")
-    sleep 0.5
+    wait_until { kick_event }
 
     refute_nil kick_event
     assert_equal :kick, kick_event.type
@@ -196,9 +226,6 @@ class KickIntegrationTest < Minitest::Test
     oper_success = false
     client.on(:raw) { |event| oper_success = true if event.message&.command == "381" }
     client.raw("OPER testoper testpass")
-    deadline = Time.now + 5
-    until oper_success || Time.now > deadline
-      sleep 0.05
-    end
+    wait_until(timeout: 5) { oper_success }
   end
 end

@@ -36,7 +36,7 @@ class NickIntegrationTest < Minitest::Test
 
     msg = Yaic::Message.new(command: "NICK", params: [@test_nick])
     client2.raw(msg.to_s)
-    sleep 0.5
+    wait_until { error_received }
 
     assert error_received
     assert_equal @test_nick2, client2.nick
@@ -53,7 +53,7 @@ class NickIntegrationTest < Minitest::Test
 
     msg = Yaic::Message.new(command: "NICK", params: ["#invalid"])
     client.raw(msg.to_s)
-    sleep 0.5
+    wait_until { error_received }
 
     assert error_received
     assert_equal @test_nick, client.nick
@@ -73,7 +73,7 @@ class NickIntegrationTest < Minitest::Test
 
     new_nick = unique_nick("r")
     client2.nick(new_nick)
-    sleep 0.5
+    wait_until { nick_event }
 
     refute_nil nick_event
     assert_equal :nick, nick_event.type

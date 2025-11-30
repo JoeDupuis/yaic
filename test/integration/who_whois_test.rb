@@ -27,7 +27,7 @@ class WhoWhoisIntegrationTest < Minitest::Test
     client1.on(:who) { |event| who_replies << event }
 
     client1.who(@test_channel)
-    sleep 0.5
+    wait_until { who_replies.size >= 2 }
 
     assert who_replies.size >= 2, "Should have at least 2 WHO replies"
 
@@ -47,7 +47,7 @@ class WhoWhoisIntegrationTest < Minitest::Test
     client1.on(:who) { |event| who_replies << event }
 
     client1.who(@test_nick2)
-    sleep 0.5
+    wait_until { who_replies.size >= 1 }
 
     assert_equal 1, who_replies.size, "Should have exactly 1 WHO reply"
     assert_equal @test_nick2, who_replies.first.nick
@@ -59,11 +59,13 @@ class WhoWhoisIntegrationTest < Minitest::Test
   def test_who_non_existent
     client = create_connected_client(@test_nick)
 
+    end_of_who = false
+    client.on(:raw) { |event| end_of_who = true if event.message&.command == "315" }
     who_replies = []
     client.on(:who) { |event| who_replies << event }
 
     client.who("nobody_exists_here")
-    sleep 0.5
+    wait_until { end_of_who }
 
     assert_empty who_replies, "Should have no WHO replies for non-existent nick"
   ensure
@@ -78,7 +80,7 @@ class WhoWhoisIntegrationTest < Minitest::Test
     client1.on(:whois) { |event| whois_event = event }
 
     client1.whois(@test_nick2)
-    sleep 0.5
+    wait_until { whois_event }
 
     refute_nil whois_event, "Should receive WHOIS event"
     refute_nil whois_event.result, "Should have WHOIS result"
@@ -101,7 +103,7 @@ class WhoWhoisIntegrationTest < Minitest::Test
     client1.on(:whois) { |event| whois_event = event }
 
     client1.whois(@test_nick2)
-    sleep 0.5
+    wait_until { whois_event }
 
     refute_nil whois_event.result
     assert_includes whois_event.result.channels, @test_channel
@@ -119,7 +121,7 @@ class WhoWhoisIntegrationTest < Minitest::Test
     client.on(:error) { |event| error_event = event }
 
     client.whois("nobody_exists_here")
-    sleep 0.5
+    wait_until { whois_event }
 
     refute_nil error_event, "Should receive error event for 401"
     assert_equal 401, error_event.numeric
@@ -134,14 +136,16 @@ class WhoWhoisIntegrationTest < Minitest::Test
     client1 = create_connected_client(@test_nick)
     client2 = create_connected_client(@test_nick2)
 
+    away_set = false
+    client2.on(:raw) { |event| away_set = true if event.message&.command == "306" }
     client2.raw("AWAY :I am busy")
-    sleep 0.5
+    wait_until { away_set }
 
     whois_event = nil
     client1.on(:whois) { |event| whois_event = event }
 
     client1.whois(@test_nick2)
-    sleep 0.5
+    wait_until { whois_event }
 
     refute_nil whois_event.result
     assert_equal "I am busy", whois_event.result.away

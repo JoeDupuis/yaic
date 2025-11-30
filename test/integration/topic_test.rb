@@ -20,10 +20,10 @@ class TopicIntegrationTest < Minitest::Test
     client = create_connected_client(@test_nick)
     client.join(@test_channel)
 
+    topic_set = false
+    client.on(:topic) { topic_set = true }
     client.topic(@test_channel, "Test Topic Text")
-    sleep 0.5
-
-    client.topic(@test_channel)
+    wait_until { topic_set }
 
     topic_received = false
     topic_text = nil
@@ -36,7 +36,8 @@ class TopicIntegrationTest < Minitest::Test
       end
     end
 
-    sleep 0.5
+    client.topic(@test_channel)
+    wait_until { topic_received }
 
     assert topic_received, "Should receive RPL_TOPIC (332)"
     assert_equal "Test Topic Text", topic_text
@@ -60,8 +61,7 @@ class TopicIntegrationTest < Minitest::Test
     end
 
     client.topic(notopic_channel)
-
-    sleep 0.5
+    wait_until { notopic_received }
 
     assert notopic_received, "Should receive RPL_NOTOPIC (331)"
   ensure
@@ -81,8 +81,7 @@ class TopicIntegrationTest < Minitest::Test
     end
 
     client.topic(@test_channel, "New topic from test")
-
-    sleep 0.5
+    wait_until { topic_confirmed }
 
     assert topic_confirmed, "Should receive TOPIC confirmation"
     assert_equal "New topic from test", new_topic
@@ -95,18 +94,16 @@ class TopicIntegrationTest < Minitest::Test
     client = create_connected_client(@test_nick)
     client.join(@test_channel)
 
+    topic_set = false
+    client.on(:topic) { topic_set = true }
     client.topic(@test_channel, "Topic to clear")
-    sleep 0.5
+    wait_until { topic_set }
 
     topic_cleared = false
-
-    client.on(:topic) do |event|
-      topic_cleared = true
-    end
+    client.on(:topic) { topic_cleared = true }
 
     client.topic(@test_channel, "")
-
-    sleep 0.5
+    wait_until { topic_cleared }
 
     assert topic_cleared, "Topic should be cleared"
   ensure
@@ -122,16 +119,16 @@ class TopicIntegrationTest < Minitest::Test
     client1.join(@test_channel)
 
     client2 = create_connected_client(@test_nick2)
+    client2_joined = false
+    client1.on(:join) { |e| client2_joined = true if e.user.nick == @test_nick2 }
     client2.join(@test_channel)
-
-    sleep 0.5
+    wait_until { client2_joined }
 
     topic_event = nil
     client2.on(:topic) { |event| topic_event = event }
 
     client1.topic(@test_channel, "Changed by other user")
-
-    sleep 0.5
+    wait_until { topic_event }
 
     refute_nil topic_event
     assert_equal :topic, topic_event.type

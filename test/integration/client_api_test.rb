@@ -48,8 +48,7 @@ class ClientApiIntegrationTest < Minitest::Test
     client2.on(:message) { |event| received_message = event }
 
     client1.privmsg(@test_channel, "Hello from API test")
-
-    sleep 0.5
+    wait_until { received_message }
 
     refute_nil received_message, "Should receive :message event"
     assert_equal "Hello from API test", received_message.text
@@ -70,8 +69,7 @@ class ClientApiIntegrationTest < Minitest::Test
     client2.join(@test_channel)
 
     client2.privmsg(@test_channel, "Hello!")
-
-    sleep 0.5
+    wait_until { !messages.empty? }
 
     refute_empty messages
     assert_equal "Hello!", messages.first.text
@@ -107,7 +105,6 @@ class ClientApiIntegrationTest < Minitest::Test
     assert client.channels.key?(@test_channel)
 
     client.part(@test_channel, "Testing part")
-    sleep 0.5
     refute client.channels.key?(@test_channel)
 
     client.quit("Session complete")
@@ -139,8 +136,7 @@ class ClientApiIntegrationTest < Minitest::Test
     client.on(:error) { |event| error_events << event }
 
     client.privmsg("nonexistent_user_#{rand(10000)}", "Hello")
-
-    sleep 0.5
+    wait_until { error_events.any? { |e| e.numeric == 401 } }
 
     assert error_events.any? { |e| e.numeric == 401 }, "Should receive ERR_NOSUCHNICK (401)"
   ensure

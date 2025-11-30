@@ -24,7 +24,7 @@ class NamesIntegrationTest < Minitest::Test
     client.on(:names) { |event| names_event = event }
 
     client.names(@test_channel)
-    sleep 0.5
+    wait_until { names_event }
 
     refute_nil names_event
     channel = client.channels[@test_channel]
@@ -50,7 +50,7 @@ class NamesIntegrationTest < Minitest::Test
     client2.on(:names) { |event| names_event = event }
 
     client2.names(@test_channel)
-    sleep 0.5
+    wait_until { names_event }
 
     refute_nil names_event
     channel = client2.channels[@test_channel]
@@ -110,7 +110,7 @@ class NamesIntegrationTest < Minitest::Test
     client.on(:names) { |event| names_event = event }
 
     client.names(@test_channel)
-    sleep 0.5
+    wait_until { names_event }
 
     refute_nil names_event
     channel = client.channels[@test_channel]
@@ -148,19 +148,13 @@ class NamesIntegrationTest < Minitest::Test
       msg = event.message
       mode_received = true if msg&.command == "MODE" && msg.params.include?(channel)
     end
-    deadline = Time.now + 5
-    until mode_received || Time.now > deadline
-      sleep 0.05
-    end
+    wait_until(timeout: 5) { mode_received }
   end
 
   def become_oper(client)
     oper_success = false
     client.on(:raw) { |event| oper_success = true if event.message&.command == "381" }
     client.raw("OPER testoper testpass")
-    deadline = Time.now + 5
-    until oper_success || Time.now > deadline
-      sleep 0.05
-    end
+    wait_until(timeout: 5) { oper_success }
   end
 end

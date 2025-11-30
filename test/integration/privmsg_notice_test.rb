@@ -33,7 +33,7 @@ class PrivmsgNoticeIntegrationTest < Minitest::Test
     client2.on(:message) { |event| received_event = event }
 
     client1.privmsg(@test_nick2, "Hello")
-    sleep 0.5
+    wait_until { received_event }
 
     refute_nil received_event
     assert_equal @test_nick, received_event.source.nick
@@ -70,7 +70,7 @@ class PrivmsgNoticeIntegrationTest < Minitest::Test
     client1.on(:message) { |event| message_event = event }
 
     client2.privmsg(@test_nick, "hello from test")
-    sleep 0.5
+    wait_until { message_event }
 
     refute_nil message_event
     assert_equal :message, message_event.type
@@ -93,7 +93,7 @@ class PrivmsgNoticeIntegrationTest < Minitest::Test
     client1.on(:message) { |event| message_event = event }
 
     client2.privmsg(@test_channel, "hello channel")
-    sleep 0.5
+    wait_until { message_event }
 
     refute_nil message_event
     assert_equal :message, message_event.type
@@ -113,7 +113,7 @@ class PrivmsgNoticeIntegrationTest < Minitest::Test
     client1.on(:notice) { |event| notice_event = event }
 
     client2.notice(@test_nick, "FYI info here")
-    sleep 0.5
+    wait_until { notice_event }
 
     refute_nil notice_event
     assert_equal :notice, notice_event.type
@@ -136,9 +136,8 @@ class PrivmsgNoticeIntegrationTest < Minitest::Test
     client1.on(:message) { |event| targets << event.target }
 
     client2.privmsg(@test_channel, "channel msg")
-    sleep 0.3
     client2.privmsg(@test_nick, "private msg")
-    sleep 0.3
+    wait_until { targets.size >= 2 }
 
     assert_includes targets, @test_channel
     assert_includes targets, @test_nick
@@ -154,7 +153,7 @@ class PrivmsgNoticeIntegrationTest < Minitest::Test
     client.on(:error) { |event| error_event = event if event.numeric == 401 }
 
     client.privmsg("nonexistent_user_xyz_12345", "Hello")
-    sleep 0.5
+    wait_until { error_event }
 
     refute_nil error_event
     assert_equal :error, error_event.type
@@ -170,7 +169,7 @@ class PrivmsgNoticeIntegrationTest < Minitest::Test
     client.on(:error) { |event| error_event = event if [403, 404].include?(event.numeric) }
 
     client.privmsg("#nonexistent_chan_xyz", "Hello")
-    sleep 0.5
+    wait_until { error_event }
 
     refute_nil error_event
     assert_equal :error, error_event.type

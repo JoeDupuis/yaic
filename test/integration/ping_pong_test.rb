@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require "test_helper"
-require "timeout"
 
 class PingPongIntegrationTest < Minitest::Test
   include UniqueTestIdentifiers
@@ -22,12 +21,22 @@ class PingPongIntegrationTest < Minitest::Test
     socket.write("NICK #{@test_nick}")
     socket.write("USER testuser 0 * :Test User")
 
-    read_until_welcome(socket)
+    wait_until(timeout: 10) do
+      raw = socket.read
+      raw && Yaic::Message.parse(raw)&.command == "001"
+    end
 
     socket.write("PING :mytoken123")
 
-    messages = read_until_pong(socket)
-    pong = messages.find { |m| m.command == "PONG" }
+    pong = nil
+    wait_until(timeout: 5) do
+      raw = socket.read
+      if raw
+        msg = Yaic::Message.parse(raw)
+        pong = msg if msg&.command == "PONG"
+      end
+      pong
+    end
 
     refute_nil pong, "Should receive PONG response"
     assert_includes pong.params, "mytoken123"
@@ -41,8 +50,15 @@ class PingPongIntegrationTest < Minitest::Test
 
     socket.write("NICK #{@test_nick}")
 
-    messages = read_multiple(socket, 3)
-    ping_received = messages.find { |m| m.command == "PING" }
+    ping_received = nil
+    wait_until(timeout: 3) do
+      raw = socket.read
+      if raw
+        msg = Yaic::Message.parse(raw)
+        ping_received = msg if msg&.command == "PING"
+      end
+      ping_received
+    end
 
     if ping_received
       token = ping_received.params[0]
@@ -51,8 +67,15 @@ class PingPongIntegrationTest < Minitest::Test
 
     socket.write("USER testuser 0 * :Test User")
 
-    messages = read_until_welcome(socket)
-    welcome = messages.find { |m| m.command == "001" }
+    welcome = nil
+    wait_until(timeout: 10) do
+      raw = socket.read
+      if raw
+        msg = Yaic::Message.parse(raw)
+        welcome = msg if msg&.command == "001"
+      end
+      welcome
+    end
 
     refute_nil welcome, "Should receive RPL_WELCOME after PONG during registration"
   ensure
@@ -66,12 +89,22 @@ class PingPongIntegrationTest < Minitest::Test
     socket.write("NICK #{@test_nick}")
     socket.write("USER testuser 0 * :Test User")
 
-    read_until_welcome(socket)
+    wait_until(timeout: 10) do
+      raw = socket.read
+      raw && Yaic::Message.parse(raw)&.command == "001"
+    end
 
     socket.write("PING simpletoken")
 
-    messages = read_until_pong(socket)
-    pong = messages.find { |m| m.command == "PONG" }
+    pong = nil
+    wait_until(timeout: 5) do
+      raw = socket.read
+      if raw
+        msg = Yaic::Message.parse(raw)
+        pong = msg if msg&.command == "PONG"
+      end
+      pong
+    end
 
     refute_nil pong, "Should receive PONG response"
     assert_includes pong.params, "simpletoken"
@@ -92,7 +125,7 @@ class PingPongIntegrationTest < Minitest::Test
     assert client.connected?
 
     initial_last_received = client.last_received_at
-    sleep 6
+    wait_until(timeout: 10) { client.last_received_at > initial_last_received }
 
     assert client.last_received_at > initial_last_received, "Client should continue receiving messages (PING handled)"
     refute client.connection_stale?
@@ -106,59 +139,5 @@ class PingPongIntegrationTest < Minitest::Test
     TCPSocket.new(@host, 6667).close
   rescue Errno::ECONNREFUSED, Errno::ETIMEDOUT, Errno::EPERM
     flunk "IRC server not running. Start it with: bin/start-irc-server"
-  end
-
-  def read_until_welcome(socket, seconds = 10)
-    messages = []
-    Timeout.timeout(seconds) do
-      loop do
-        raw = socket.read
-        if raw
-          msg = Yaic::Message.parse(raw)
-          if msg
-            messages << msg
-            return messages if msg.command == "001"
-          end
-        end
-        sleep 0.01
-      end
-    end
-  rescue Timeout::Error
-    messages
-  end
-
-  def read_until_pong(socket, seconds = 5)
-    messages = []
-    Timeout.timeout(seconds) do
-      loop do
-        raw = socket.read
-        if raw
-          msg = Yaic::Message.parse(raw)
-          if msg
-            messages << msg
-            return messages if msg.command == "PONG"
-          end
-        end
-        sleep 0.01
-      end
-    end
-  rescue Timeout::Error
-    messages
-  end
-
-  def read_multiple(socket, seconds)
-    messages = []
-    Timeout.timeout(seconds) do
-      loop do
-        raw = socket.read
-        if raw
-          msg = Yaic::Message.parse(raw)
-          messages << msg if msg
-        end
-        sleep 0.01
-      end
-    end
-  rescue Timeout::Error
-    messages
   end
 end

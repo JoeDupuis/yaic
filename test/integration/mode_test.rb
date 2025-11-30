@@ -23,7 +23,7 @@ class ModeIntegrationTest < Minitest::Test
     client.on(:raw) { |event| umode_received = true if event.message&.command == "221" }
 
     client.mode(@test_nick)
-    sleep 0.5
+    wait_until { umode_received }
 
     assert umode_received, "Should receive 221 RPL_UMODEIS"
   ensure
@@ -40,7 +40,7 @@ class ModeIntegrationTest < Minitest::Test
     end
 
     client.mode(@test_nick, "+i")
-    sleep 0.5
+    wait_until { mode_confirmed }
 
     assert mode_confirmed, "Should receive MODE confirmation for +i"
   ensure
@@ -55,7 +55,7 @@ class ModeIntegrationTest < Minitest::Test
     client1.on(:raw) { |event| error_received = true if event.message&.command == "502" }
 
     client1.mode(@test_nick2, "+i")
-    sleep 0.5
+    wait_until { error_received }
 
     assert error_received, "Should receive 502 ERR_USERSDONTMATCH"
   ensure
@@ -71,7 +71,7 @@ class ModeIntegrationTest < Minitest::Test
     client.on(:raw) { |event| mode_received = true if event.message&.command == "324" }
 
     client.mode(@test_channel)
-    sleep 0.5
+    wait_until { mode_received }
 
     assert mode_received, "Should receive 324 RPL_CHANNELMODEIS"
   ensure
@@ -84,8 +84,14 @@ class ModeIntegrationTest < Minitest::Test
     become_oper(client)
     client.join(@test_channel)
 
+    samode_confirmed = false
+    client.on(:raw) do |event|
+      msg = event.message
+      samode_confirmed = true if msg&.command == "MODE" && msg.params.include?("+o")
+    end
+
     client.raw("SAMODE #{@test_channel} +o #{@test_nick}")
-    sleep 0.5
+    wait_until { samode_confirmed }
 
     mode_confirmed = false
     client.on(:raw) do |event|
@@ -94,7 +100,7 @@ class ModeIntegrationTest < Minitest::Test
     end
 
     client.mode(@test_channel, "+m")
-    sleep 0.5
+    wait_until { mode_confirmed }
 
     assert mode_confirmed, "Should receive MODE confirmation for +m"
   ensure
@@ -107,8 +113,14 @@ class ModeIntegrationTest < Minitest::Test
     become_oper(client1)
     client1.join(@test_channel)
 
+    samode_confirmed = false
+    client1.on(:raw) do |event|
+      msg = event.message
+      samode_confirmed = true if msg&.command == "MODE" && msg.params.include?("+o")
+    end
+
     client1.raw("SAMODE #{@test_channel} +o #{@test_nick}")
-    sleep 0.5
+    wait_until { samode_confirmed }
 
     client2 = create_connected_client(@test_nick2)
     client2.join(@test_channel)
@@ -117,7 +129,7 @@ class ModeIntegrationTest < Minitest::Test
     client2.on(:mode) { |event| mode_event = event }
 
     client1.mode(@test_channel, "+o", @test_nick2)
-    sleep 0.5
+    wait_until { mode_event }
 
     refute_nil mode_event
     assert_equal "+o", mode_event.modes
@@ -133,8 +145,14 @@ class ModeIntegrationTest < Minitest::Test
     become_oper(client)
     client.join(@test_channel)
 
+    samode_confirmed = false
+    client.on(:raw) do |event|
+      msg = event.message
+      samode_confirmed = true if msg&.command == "MODE" && msg.params.include?("+o")
+    end
+
     client.raw("SAMODE #{@test_channel} +o #{@test_nick}")
-    sleep 0.5
+    wait_until { samode_confirmed }
 
     mode_confirmed = false
     client.on(:raw) do |event|
@@ -143,7 +161,7 @@ class ModeIntegrationTest < Minitest::Test
     end
 
     client.mode(@test_channel, "+k", "secret")
-    sleep 0.5
+    wait_until { mode_confirmed }
 
     assert mode_confirmed, "Should receive MODE confirmation for +k"
     assert_equal "secret", client.channels[@test_channel].modes[:key]
@@ -159,7 +177,7 @@ class ModeIntegrationTest < Minitest::Test
     client.on(:raw) { |event| error_received = true if event.message&.command == "482" }
 
     client.mode(@test_channel, "+m")
-    sleep 0.5
+    wait_until { error_received }
 
     assert error_received, "Should receive 482 ERR_CHANOPRIVSNEEDED"
   ensure
@@ -190,9 +208,6 @@ class ModeIntegrationTest < Minitest::Test
     oper_success = false
     client.on(:raw) { |event| oper_success = true if event.message&.command == "381" }
     client.raw("OPER testoper testpass")
-    deadline = Time.now + 5
-    until oper_success || Time.now > deadline
-      sleep 0.05
-    end
+    wait_until(timeout: 5) { oper_success }
   end
 end

@@ -84,7 +84,7 @@ class EventIntegrationTest < Minitest::Test
     client2.connect
 
     client2.privmsg(@test_nick, "hello from test")
-    sleep 0.5
+    wait_until { message_event }
 
     refute_nil message_event, "Should receive :message event"
     assert_equal :message, message_event.type

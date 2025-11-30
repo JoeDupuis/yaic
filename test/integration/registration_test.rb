@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require "test_helper"
-require "timeout"
 
 class RegistrationIntegrationTest < Minitest::Test
   include UniqueTestIdentifiers
@@ -51,9 +50,16 @@ class RegistrationIntegrationTest < Minitest::Test
     socket.connect
     socket.write("NICK #invalid")
 
-    messages = read_multiple(socket, 5)
+    erroneous = nil
+    wait_until(timeout: 5) do
+      raw = socket.read
+      if raw
+        msg = Yaic::Message.parse(raw)
+        erroneous = msg if msg&.command == "432"
+      end
+      erroneous
+    end
 
-    erroneous = messages.find { |m| m.command == "432" }
     refute_nil erroneous, "Should receive ERR_ERRONEUSNICKNAME (432)"
   ensure
     socket&.disconnect
@@ -64,9 +70,16 @@ class RegistrationIntegrationTest < Minitest::Test
     socket.connect
     socket.write("NICK")
 
-    messages = read_multiple(socket, 5)
+    error = nil
+    wait_until(timeout: 5) do
+      raw = socket.read
+      if raw
+        msg = Yaic::Message.parse(raw)
+        error = msg if msg&.command == "431" || msg&.command == "461"
+      end
+      error
+    end
 
-    error = messages.find { |m| m.command == "431" || m.command == "461" }
     refute_nil error, "Should receive ERR_NONICKNAMEGIVEN (431) or ERR_NEEDMOREPARAMS (461)"
   ensure
     socket&.disconnect
@@ -78,21 +91,5 @@ class RegistrationIntegrationTest < Minitest::Test
     TCPSocket.new(@host, 6667).close
   rescue Errno::ECONNREFUSED, Errno::ETIMEDOUT, Errno::EPERM
     flunk "IRC server not running. Start it with: bin/start-irc-server"
-  end
-
-  def read_multiple(socket, seconds)
-    messages = []
-    Timeout.timeout(seconds) do
-      loop do
-        raw = socket.read
-        if raw
-          msg = Yaic::Message.parse(raw)
-          messages << msg if msg
-        end
-        sleep 0.01
-      end
-    end
-  rescue Timeout::Error
-    messages
   end
 end

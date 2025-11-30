@@ -39,7 +39,7 @@ class QuitIntegrationTest < Minitest::Test
     client1.on(:quit) { |event| quit_event = event if event.user.nick == @test_nick2 }
 
     client2.quit("Leaving now")
-    sleep 0.5
+    wait_until { quit_event }
 
     refute_nil quit_event
     assert_equal :quit, quit_event.type

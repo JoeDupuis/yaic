@@ -591,7 +591,7 @@ All 16 planned features are complete. The library now provides:
 |---------|--------|-------------|
 | 20-test-optimization.md | ✅ complete | Planning and profiling |
 | 21-test-parallelization.md | ✅ complete | Enable parallel test execution |
-| 22-wait-until-pattern.md | pending | Replace sleep/read_multiple with wait_until |
+| 22-wait-until-pattern.md | ✅ complete | Replace sleep/read_multiple with wait_until |
 | 23-ping-test-optimization.md | pending | Optimize ping test |
 
 ---
@@ -616,6 +616,29 @@ All 16 planned features are complete. The library now provides:
 
 ---
 
+### Session 2025-11-29 (24)
+
+**Feature**: 22-wait-until-pattern
+**Status**: Completed
+
+**What was done**:
+- Added `wait_until(timeout: 2)` helper to `test/test_helper.rb` in UniqueTestIdentifiers module
+- Replaced all `sleep 0.x` statements in integration tests with `wait_until { condition }`
+- Replaced `read_multiple`, `read_until_pong`, `read_until_welcome` with inline `wait_until` blocks
+- Removed all old helper functions from ping_pong_test.rb, registration_test.rb, socket_test.rb
+- Removed unnecessary `require "timeout"` statements
+- Refactored `become_oper` and `wait_for_mode` helpers to use `wait_until`
+- Updated unit tests in client_test.rb to use deadline-based waiting
+- Test suite time reduced from ~13s to ~10s (additional 30% improvement)
+- All 267 tests pass, 575 assertions, 0 failures, 1 pre-existing skip
+
+**Notes for next session**:
+- `wait_until` helper returns condition result or nil on timeout
+- Default timeout is 2 seconds, can be overridden with `wait_until(timeout: 5)`
+- Next feature: `23-ping-test-optimization.md` - Optimize ping test with faster server config
+
+---
+
 ## Suggested Next Feature
 
-Next: `22-wait-until-pattern.md` - Replace sleep/read_multiple with wait_until for cleaner async handling.
+Next: `23-ping-test-optimization.md` - Optimize ping test with faster server config.

@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require "test_helper"
-require "timeout"
 
 class SocketIntegrationTest < Minitest::Test
   include UniqueTestIdentifiers
@@ -42,7 +41,12 @@ class SocketIntegrationTest < Minitest::Test
     socket.write("NICK #{@test_nick}")
     socket.write("USER #{@test_nick} 0 * :Test")
 
-    responses = read_multiple(socket, 5)
+    responses = []
+    wait_until(timeout: 5) do
+      msg = socket.read
+      responses << msg if msg
+      responses.any?
+    end
     refute_empty responses, "Server should respond to registration"
   ensure
     socket&.disconnect
@@ -74,7 +78,12 @@ class SocketIntegrationTest < Minitest::Test
     socket.write("NICK #{@test_nick}")
     socket.write("USER #{@test_nick} 0 * :Test")
 
-    responses = read_multiple(socket, 5)
+    responses = []
+    wait_until(timeout: 5) do
+      msg = socket.read
+      responses << msg if msg
+      responses.any?
+    end
     refute_empty responses, "Server should respond to registration over SSL"
   ensure
     socket&.disconnect
@@ -146,27 +155,10 @@ class SocketIntegrationTest < Minitest::Test
   end
 
   def read_with_timeout(socket, seconds)
-    Timeout.timeout(seconds) do
-      loop do
-        msg = socket.read
-        return msg if msg
-        sleep 0.01
-      end
+    result = nil
+    wait_until(timeout: seconds) do
+      result = socket.read
     end
-  rescue Timeout::Error
-    nil
-  end
-
-  def read_multiple(socket, seconds)
-    messages = []
-    Timeout.timeout(seconds) do
-      loop do
-        msg = socket.read
-        messages << msg if msg
-        sleep 0.01
-      end
-    end
-  rescue Timeout::Error
-    messages
+    result
   end
 end

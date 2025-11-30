@@ -1386,7 +1386,10 @@ class ClientTest < Minitest::Test
     client.on(:message) { |event| received_events << event }
 
     client.connect
-    sleep 0.1
+    deadline = Time.now + 2
+    until received_events.size >= 1 || Time.now > deadline
+      sleep 0.01
+    end
 
     assert_equal 1, received_events.size
     assert_equal "Hello", received_events.first.text
@@ -1409,7 +1412,10 @@ class ClientTest < Minitest::Test
     assert read_thread.alive?
 
     client.quit
-    sleep 0.1
+    deadline = Time.now + 2
+    until !read_thread.alive? || Time.now > deadline
+      sleep 0.01
+    end
 
     refute read_thread.alive?
     assert_equal :disconnected, client.state
