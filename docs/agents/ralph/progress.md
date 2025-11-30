@@ -658,6 +658,31 @@ All 16 planned features are complete. The library now provides:
 
 ---
 
+### Session 2025-11-29 (26)
+
+**Feature**: 24-blocking-who-whois
+**Status**: Completed
+
+**What was done**:
+- Created `Yaic::WhoResult` class with attributes: channel, user, host, server, nick, away, realname
+- Updated `who(mask, timeout:)` to block until END OF WHO (315) and return Array of WhoResult
+- Updated `whois(nick, timeout:)` to block until END OF WHOIS (318) and return WhoisResult or nil
+- Added `@pending_who_results`, `@pending_who_complete`, `@pending_whois_complete` tracking hashes
+- Added `handle_rpl_endofwho` handler for 315 numeric
+- Added `who_reply_matches_mask?` helper for correctly matching WHO replies to pending requests (channel-based vs nick-based)
+- Updated unit tests (23 tests in who_whois_test.rb)
+- Updated integration tests (9 tests)
+- All 279 tests pass, 629 assertions, 0 failures, 0 errors, 0 skips
+
+**Notes for next session**:
+- `client.who("#channel")` now returns Array of WhoResult objects directly
+- `client.whois("nick")` now returns WhoisResult or nil directly
+- Events (`:who`, `:whois`) still fire for backward compatibility
+- `Yaic::TimeoutError` raised on timeout
+- Next feature: 25-verbose-mode.md (depends on 24-blocking-who-whois)
+
+---
+
 ## Suggested Next Feature
 
-All test optimization features are complete. No pending features in the queue.
+Next feature to implement: `25-verbose-mode.md`

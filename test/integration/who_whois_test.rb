@@ -16,78 +16,89 @@ class WhoWhoisIntegrationTest < Minitest::Test
     @test_channel = unique_channel
   end
 
-  def test_who_channel
+  def test_who_channel_returns_all_users
     client1 = create_connected_client(@test_nick)
     client2 = create_connected_client(@test_nick2)
 
     client1.join(@test_channel)
     client2.join(@test_channel)
 
-    who_replies = []
-    client1.on(:who) { |event| who_replies << event }
+    results = client1.who(@test_channel)
 
-    client1.who(@test_channel)
-    wait_until { who_replies.size >= 2 }
+    assert_instance_of Array, results
+    assert results.size >= 2, "Should have at least 2 WHO results"
 
-    assert who_replies.size >= 2, "Should have at least 2 WHO replies"
-
-    nicks = who_replies.map(&:nick)
+    nicks = results.map(&:nick)
     assert_includes nicks, @test_nick
     assert_includes nicks, @test_nick2
+
+    result = results.find { |r| r.nick == @test_nick }
+    assert_instance_of Yaic::WhoResult, result
+    refute_nil result.user
+    refute_nil result.host
+    refute_nil result.server
+    assert_equal @test_channel, result.channel
+    assert_equal false, result.away
   ensure
     client1&.quit
     client2&.quit
   end
 
-  def test_who_specific_nick
+  def test_who_nick_returns_single_user
     client1 = create_connected_client(@test_nick)
     client2 = create_connected_client(@test_nick2)
 
-    who_replies = []
-    client1.on(:who) { |event| who_replies << event }
+    results = client1.who(@test_nick2)
 
-    client1.who(@test_nick2)
-    wait_until { who_replies.size >= 1 }
-
-    assert_equal 1, who_replies.size, "Should have exactly 1 WHO reply"
-    assert_equal @test_nick2, who_replies.first.nick
+    assert_equal 1, results.size, "Should have exactly 1 WHO result"
+    assert_equal @test_nick2, results.first.nick
   ensure
     client1&.quit
     client2&.quit
   end
 
-  def test_who_non_existent
+  def test_who_non_existent_returns_empty_array
     client = create_connected_client(@test_nick)
 
-    end_of_who = false
-    client.on(:raw) { |event| end_of_who = true if event.message&.command == "315" }
-    who_replies = []
-    client.on(:who) { |event| who_replies << event }
+    results = client.who("nobody_exists_here")
 
-    client.who("nobody_exists_here")
-    wait_until { end_of_who }
-
-    assert_empty who_replies, "Should have no WHO replies for non-existent nick"
+    assert_instance_of Array, results
+    assert_empty results, "Should have no WHO results for non-existent nick"
   ensure
     client&.quit
   end
 
-  def test_whois_user
+  def test_who_still_emits_events
     client1 = create_connected_client(@test_nick)
     client2 = create_connected_client(@test_nick2)
 
-    whois_event = nil
-    client1.on(:whois) { |event| whois_event = event }
+    client1.join(@test_channel)
+    client2.join(@test_channel)
 
-    client1.whois(@test_nick2)
-    wait_until { whois_event }
+    who_events = []
+    client1.on(:who) { |event| who_events << event }
 
-    refute_nil whois_event, "Should receive WHOIS event"
-    refute_nil whois_event.result, "Should have WHOIS result"
-    assert_equal @test_nick2, whois_event.result.nick
-    refute_nil whois_event.result.user
-    refute_nil whois_event.result.host
-    refute_nil whois_event.result.server
+    results = client1.who(@test_channel)
+
+    assert results.size >= 2
+    assert who_events.size >= 2
+    assert_equal results.size, who_events.size
+  ensure
+    client1&.quit
+    client2&.quit
+  end
+
+  def test_whois_returns_user_info
+    client1 = create_connected_client(@test_nick)
+    client2 = create_connected_client(@test_nick2)
+
+    result = client1.whois(@test_nick2)
+
+    assert_instance_of Yaic::WhoisResult, result
+    assert_equal @test_nick2, result.nick
+    refute_nil result.user
+    refute_nil result.host
+    refute_nil result.server
   ensure
     client1&.quit
     client2&.quit
@@ -99,37 +110,40 @@ class WhoWhoisIntegrationTest < Minitest::Test
 
     client2.join(@test_channel)
 
-    whois_event = nil
-    client1.on(:whois) { |event| whois_event = event }
+    result = client1.whois(@test_nick2)
 
-    client1.whois(@test_nick2)
-    wait_until { whois_event }
-
-    refute_nil whois_event.result
-    assert_includes whois_event.result.channels, @test_channel
+    refute_nil result
+    assert_includes result.channels, @test_channel
   ensure
     client1&.quit
     client2&.quit
   end
 
-  def test_whois_non_existent
+  def test_whois_unknown_returns_nil
     client = create_connected_client(@test_nick)
 
-    whois_event = nil
-    error_event = nil
-    client.on(:whois) { |event| whois_event = event }
-    client.on(:error) { |event| error_event = event }
+    result = client.whois("nobody_exists_here")
 
-    client.whois("nobody_exists_here")
-    wait_until { whois_event }
-
-    refute_nil error_event, "Should receive error event for 401"
-    assert_equal 401, error_event.numeric
-
-    refute_nil whois_event, "Should receive WHOIS event even on error"
-    assert_nil whois_event.result, "Result should be nil for non-existent nick"
+    assert_nil result, "Result should be nil for non-existent nick"
   ensure
     client&.quit
+  end
+
+  def test_whois_still_emits_events
+    client1 = create_connected_client(@test_nick)
+    client2 = create_connected_client(@test_nick2)
+
+    whois_event = nil
+    client1.on(:whois) { |event| whois_event = event }
+
+    result = client1.whois(@test_nick2)
+
+    refute_nil result
+    refute_nil whois_event
+    assert_equal result.nick, whois_event.result.nick
+  ensure
+    client1&.quit
+    client2&.quit
   end
 
   def test_whois_away_user
@@ -141,14 +155,10 @@ class WhoWhoisIntegrationTest < Minitest::Test
     client2.raw("AWAY :I am busy")
     wait_until { away_set }
 
-    whois_event = nil
-    client1.on(:whois) { |event| whois_event = event }
+    result = client1.whois(@test_nick2)
 
-    client1.whois(@test_nick2)
-    wait_until { whois_event }
-
-    refute_nil whois_event.result
-    assert_equal "I am busy", whois_event.result.away
+    refute_nil result
+    assert_equal "I am busy", result.away
   ensure
     client1&.quit
     client2&.quit

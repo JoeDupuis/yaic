@@ -48,6 +48,9 @@ module Yaic
       @channels_mutex = Mutex.new
       @pending_names = {}
       @pending_whois = {}
+      @pending_whois_complete = {}
+      @pending_who_results = {}
+      @pending_who_complete = {}
       @read_thread = nil
       @state_mutex = Mutex.new
     end
@@ -107,6 +110,8 @@ module Yaic
         handle_mode(message)
       when "352"
         handle_rpl_whoreply(message)
+      when "315"
+        handle_rpl_endofwho(message)
       when "311"
         handle_rpl_whoisuser(message)
       when "319"
@@ -217,14 +222,31 @@ module Yaic
       @socket.write(message.to_s)
     end
 
-    def who(mask)
+    def who(mask, timeout: DEFAULT_OPERATION_TIMEOUT)
+      @pending_who_results[mask] = []
+      @pending_who_complete[mask] = false
+
       message = Message.new(command: "WHO", params: [mask])
       @socket.write(message.to_s)
+
+      wait_until(timeout: timeout) { @pending_who_complete[mask] }
+
+      @pending_who_results.delete(mask)
+    ensure
+      @pending_who_complete.delete(mask)
     end
 
-    def whois(nick)
+    def whois(nick, timeout: DEFAULT_OPERATION_TIMEOUT)
+      @pending_whois_complete[nick] = false
+
       message = Message.new(command: "WHOIS", params: [nick])
       @socket.write(message.to_s)
+
+      wait_until(timeout: timeout) { @pending_whois_complete[nick] }
+
+      @pending_whois.delete(nick)
+    ensure
+      @pending_whois_complete.delete(nick)
     end
 
     def raw(command)
@@ -528,8 +550,36 @@ module Yaic
       away = flags&.include?("G") || false
       realname = hopcount_realname&.sub(/^\d+\s*/, "") || ""
 
+      @pending_who_results.each_key do |mask|
+        if who_reply_matches_mask?(mask, channel, nick)
+          result = WhoResult.new(
+            channel: channel,
+            user: user,
+            host: host,
+            server: server,
+            nick: nick,
+            away: away,
+            realname: realname
+          )
+          @pending_who_results[mask] << result
+        end
+      end
+
       emit(:who, message, channel: channel, user: user, host: host, server: server,
         nick: nick, away: away, realname: realname)
+    end
+
+    def handle_rpl_endofwho(message)
+      mask = message.params[1]
+      @pending_who_complete[mask] = true if @pending_who_complete.key?(mask)
+    end
+
+    def who_reply_matches_mask?(mask, channel, nick)
+      if mask.start_with?("#")
+        channel.casecmp?(mask)
+      else
+        nick.casecmp?(mask)
+      end
     end
 
     def handle_rpl_whoisuser(message)
@@ -591,7 +641,8 @@ module Yaic
 
     def handle_rpl_endofwhois(message)
       nick = message.params[1]
-      result = @pending_whois.delete(nick)
+      @pending_whois_complete[nick] = true if @pending_whois_complete.key?(nick)
+      result = @pending_whois[nick]
       emit(:whois, message, result: result)
     end
 
