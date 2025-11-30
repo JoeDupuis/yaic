@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "monitor"
+
 require_relative "yaic/version"
 require_relative "yaic/source"
 require_relative "yaic/message"

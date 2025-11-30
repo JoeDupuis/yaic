@@ -26,7 +26,23 @@ module Yaic
       "&" => :admin
     }.freeze
 
-    attr_reader :state, :isupport, :last_received_at, :channels, :server
+    attr_reader :server
+
+    def state
+      @monitor.synchronize { @state }
+    end
+
+    def isupport
+      @monitor.synchronize { @isupport.dup }
+    end
+
+    def last_received_at
+      @monitor.synchronize { @last_received_at }
+    end
+
+    def channels
+      @monitor.synchronize { @channels.dup }
+    end
 
     def initialize(port:, host: nil, nick: nil, user: nil, realname: nil, password: nil, ssl: false, server: nil, nickname: nil, username: nil, verbose: false)
       @server = server || host
@@ -44,22 +60,22 @@ module Yaic
       @nick_attempts = 0
       @last_received_at = nil
       @handlers = {}
-      @handlers_mutex = Mutex.new
       @channels = {}
-      @channels_mutex = Mutex.new
       @pending_names = {}
       @pending_whois = {}
       @pending_whois_complete = {}
       @pending_who_results = {}
       @pending_who_complete = {}
       @read_thread = nil
-      @state_mutex = Mutex.new
+      @monitor = Monitor.new
     end
 
     def connect(timeout: DEFAULT_CONNECT_TIMEOUT)
       log "Connecting to #{@server}:#{@port}#{" (SSL)" if @ssl}..."
-      @socket ||= Socket.new(@server, @port, ssl: @ssl)
-      @socket.connect
+      sock = @monitor.synchronize do
+        @socket ||= Socket.new(@server, @port, ssl: @ssl)
+      end
+      sock.connect
       send_registration
       set_state(:registering)
       start_read_loop
@@ -68,17 +84,17 @@ module Yaic
     end
 
     def connected?
-      @state == :connected
+      @monitor.synchronize { @state == :connected }
     end
 
     def disconnect
-      @socket&.disconnect
+      socket&.disconnect
       set_state(:disconnected)
       @read_thread&.join(1)
     end
 
     def handle_message(message)
-      @last_received_at = Time.now
+      @monitor.synchronize { @last_received_at = Time.now }
 
       case message.command
       when "PING"
@@ -135,12 +151,14 @@ module Yaic
     end
 
     def connection_stale?
-      return false if @last_received_at.nil?
-      Time.now - @last_received_at > STALE_TIMEOUT
+      @monitor.synchronize do
+        return false if @last_received_at.nil?
+        Time.now - @last_received_at > STALE_TIMEOUT
+      end
     end
 
     def on(event_type, &block)
-      @handlers_mutex.synchronize do
+      @monitor.synchronize do
         @handlers[event_type] ||= []
         @handlers[event_type] << block
       end
@@ -148,7 +166,7 @@ module Yaic
     end
 
     def off(event_type)
-      @handlers_mutex.synchronize do
+      @monitor.synchronize do
         @handlers.delete(event_type)
       end
       self
@@ -156,21 +174,21 @@ module Yaic
 
     def privmsg(target, text)
       message = Message.new(command: "PRIVMSG", params: [target, text])
-      @socket.write(message.to_s)
+      socket.write(message.to_s)
     end
 
     alias_method :msg, :privmsg
 
     def notice(target, text)
       message = Message.new(command: "NOTICE", params: [target, text])
-      @socket.write(message.to_s)
+      socket.write(message.to_s)
     end
 
     def join(channel, key = nil, timeout: DEFAULT_OPERATION_TIMEOUT)
       log "Joining #{channel}..."
       params = key ? [channel, key] : [channel]
       message = Message.new(command: "JOIN", params: params)
-      @socket.write(message.to_s)
+      socket.write(message.to_s)
       wait_until(timeout: timeout) { channel_joined?(channel) }
       log "Joined #{channel}"
     end
@@ -179,7 +197,7 @@ module Yaic
       log "Parting #{channel}..."
       params = reason ? [channel, reason] : [channel]
       message = Message.new(command: "PART", params: params)
-      @socket.write(message.to_s)
+      socket.write(message.to_s)
       wait_until(timeout: timeout) { !channel_joined?(channel) }
       log "Parted #{channel}"
     end
@@ -187,39 +205,39 @@ module Yaic
     def quit(reason = nil)
       params = reason ? [reason] : []
       message = Message.new(command: "QUIT", params: params)
-      @socket.write(message.to_s)
-      @channels_mutex.synchronize { @channels.clear }
+      socket.write(message.to_s)
+      @monitor.synchronize { @channels.clear }
       set_state(:disconnected)
       @read_thread&.join(5)
-      @socket&.disconnect
+      socket&.disconnect
       emit(:disconnect, nil)
       log "Disconnected"
     end
 
     def nick(new_nick = nil, timeout: DEFAULT_OPERATION_TIMEOUT)
-      return @nick if new_nick.nil?
+      return @monitor.synchronize { @nick } if new_nick.nil?
 
-      old_nick = @nick
+      old_nick = @monitor.synchronize { @nick }
       message = Message.new(command: "NICK", params: [new_nick])
-      @socket.write(message.to_s)
-      wait_until(timeout: timeout) { @nick != old_nick }
+      socket.write(message.to_s)
+      wait_until(timeout: timeout) { @monitor.synchronize { @nick } != old_nick }
     end
 
     def topic(channel, new_topic = nil)
       params = new_topic.nil? ? [channel] : [channel, new_topic]
       message = Message.new(command: "TOPIC", params: params)
-      @socket.write(message.to_s)
+      socket.write(message.to_s)
     end
 
     def kick(channel, nick, reason = nil)
       params = reason ? [channel, nick, reason] : [channel, nick]
       message = Message.new(command: "KICK", params: params)
-      @socket.write(message.to_s)
+      socket.write(message.to_s)
     end
 
     def names(channel)
       message = Message.new(command: "NAMES", params: [channel])
-      @socket.write(message.to_s)
+      socket.write(message.to_s)
     end
 
     def mode(target, modes = nil, *args)
@@ -227,47 +245,57 @@ module Yaic
       params << modes if modes
       params.concat(args) unless args.empty?
       message = Message.new(command: "MODE", params: params)
-      @socket.write(message.to_s)
+      socket.write(message.to_s)
     end
 
     def who(mask, timeout: DEFAULT_OPERATION_TIMEOUT)
       log "Sending WHO #{mask}..."
-      @pending_who_results[mask] = []
-      @pending_who_complete[mask] = false
+      @monitor.synchronize do
+        @pending_who_results[mask] = []
+        @pending_who_complete[mask] = false
+      end
 
       message = Message.new(command: "WHO", params: [mask])
-      @socket.write(message.to_s)
+      socket.write(message.to_s)
 
-      wait_until(timeout: timeout) { @pending_who_complete[mask] }
+      wait_until(timeout: timeout) { @monitor.synchronize { @pending_who_complete[mask] } }
 
-      results = @pending_who_results.delete(mask)
-      log "WHO complete (#{results.size} results)"
-      results
+      @monitor.synchronize do
+        results = @pending_who_results.delete(mask)
+        log "WHO complete (#{results.size} results)"
+        results
+      end
     ensure
-      @pending_who_complete.delete(mask)
+      @monitor.synchronize { @pending_who_complete.delete(mask) }
     end
 
     def whois(nick, timeout: DEFAULT_OPERATION_TIMEOUT)
       log "Sending WHOIS #{nick}..."
-      @pending_whois_complete[nick] = false
+      @monitor.synchronize { @pending_whois_complete[nick] = false }
 
       message = Message.new(command: "WHOIS", params: [nick])
-      @socket.write(message.to_s)
+      socket.write(message.to_s)
 
-      wait_until(timeout: timeout) { @pending_whois_complete[nick] }
+      wait_until(timeout: timeout) { @monitor.synchronize { @pending_whois_complete[nick] } }
 
-      result = @pending_whois.delete(nick)
-      log "WHOIS complete"
-      result
+      @monitor.synchronize do
+        result = @pending_whois.delete(nick)
+        log "WHOIS complete"
+        result
+      end
     ensure
-      @pending_whois_complete.delete(nick)
+      @monitor.synchronize { @pending_whois_complete.delete(nick) }
     end
 
     def raw(command)
-      @socket.write(command)
+      socket.write(command)
     end
 
     private
+
+    def socket
+      @monitor.synchronize { @socket }
+    end
 
     def log(message)
       return unless @verbose
@@ -275,11 +303,11 @@ module Yaic
     end
 
     def set_state(new_state)
-      @state_mutex.synchronize { @state = new_state }
+      @monitor.synchronize { @state = new_state }
     end
 
     def channel_joined?(channel)
-      @channels_mutex.synchronize { @channels.key?(channel) }
+      @monitor.synchronize { @channels.key?(channel) }
     end
 
     def wait_until(timeout:)
@@ -293,14 +321,14 @@ module Yaic
     def start_read_loop
       @read_thread = Thread.new do
         loop do
-          break if @state == :disconnected
+          break if @monitor.synchronize { @state } == :disconnected
           process_incoming
         end
       end
     end
 
     def process_incoming
-      raw = @socket.read
+      raw = socket.read
       if raw
         message = Message.parse(raw)
         handle_message(message) if message
@@ -312,44 +340,51 @@ module Yaic
     end
 
     def send_registration
+      sock = socket
       if @password
-        @socket.write(Registration.pass_message(@password).to_s)
+        sock.write(Registration.pass_message(@password).to_s)
       end
-      @socket.write(Registration.nick_message(@nick).to_s)
-      @socket.write(Registration.user_message(@user, @realname).to_s)
+      sock.write(Registration.nick_message(@nick).to_s)
+      sock.write(Registration.user_message(@user, @realname).to_s)
     end
 
     def handle_rpl_welcome(message)
-      @nick = message.params[0] if message.params[0]
+      @monitor.synchronize do
+        @nick = message.params[0] if message.params[0]
+      end
       set_state(:connected)
     end
 
     def handle_rpl_isupport(message)
-      message.params[1..-2].each do |param|
-        next unless param
+      @monitor.synchronize do
+        message.params[1..-2].each do |param|
+          next unless param
 
-        if param.include?("=")
-          key, value = param.split("=", 2)
-          @isupport[key] = value
-        else
-          @isupport[param] = true
+          if param.include?("=")
+            key, value = param.split("=", 2)
+            @isupport[key] = value
+          else
+            @isupport[param] = true
+          end
         end
       end
     end
 
     def handle_err_nicknameinuse(_message)
-      return unless @state == :registering
+      return unless @monitor.synchronize { @state } == :registering
 
-      @nick_attempts += 1
-      new_nick = "#{@nick.sub(/_+$/, "")}#{"_" * @nick_attempts}"
-      @nick = new_nick
-      @socket.write(Registration.nick_message(@nick).to_s)
+      @monitor.synchronize do
+        @nick_attempts += 1
+        new_nick = "#{@nick.sub(/_+$/, "")}#{"_" * @nick_attempts}"
+        @nick = new_nick
+        socket.write(Registration.nick_message(@nick).to_s)
+      end
     end
 
     def handle_ping(message)
       token = message.params[0]
       pong = Message.new(command: "PONG", params: [token])
-      @socket.write(pong.to_s)
+      socket.write(pong.to_s)
     end
 
     def handle_join(message)
@@ -357,7 +392,7 @@ module Yaic
       joiner_nick = message.source&.nick
       return unless joiner_nick && channel_name
 
-      @channels_mutex.synchronize do
+      @monitor.synchronize do
         if joiner_nick == @nick
           @channels[channel_name] = Channel.new(channel_name)
         elsif (channel = @channels[channel_name])
@@ -371,7 +406,7 @@ module Yaic
       parter_nick = message.source&.nick
       return unless parter_nick && channel_name
 
-      @channels_mutex.synchronize do
+      @monitor.synchronize do
         if parter_nick == @nick
           @channels.delete(channel_name)
         else
@@ -385,7 +420,7 @@ module Yaic
       quitter_nick = message.source&.nick
       return unless quitter_nick
 
-      @channels_mutex.synchronize do
+      @monitor.synchronize do
         @channels.each_value do |channel|
           channel.users.delete(quitter_nick)
         end
@@ -397,11 +432,11 @@ module Yaic
       new_nick = message.params[0]
       return unless old_nick && new_nick
 
-      if old_nick == @nick
-        @nick = new_nick
-      end
+      @monitor.synchronize do
+        if old_nick == @nick
+          @nick = new_nick
+        end
 
-      @channels_mutex.synchronize do
         @channels.each_value do |channel|
           if channel.users.key?(old_nick)
             user_data = channel.users.delete(old_nick)
@@ -416,7 +451,7 @@ module Yaic
       kicked_nick = message.params[1]
       return unless channel_name && kicked_nick
 
-      @channels_mutex.synchronize do
+      @monitor.synchronize do
         if kicked_nick == @nick
           @channels.delete(channel_name)
         else
@@ -432,7 +467,7 @@ module Yaic
       setter_nick = message.source&.nick
       return unless channel_name
 
-      @channels_mutex.synchronize do
+      @monitor.synchronize do
         channel = @channels[channel_name]
         channel&.set_topic(topic_text, setter_nick)
       end
@@ -443,7 +478,7 @@ module Yaic
       topic_text = message.params[2]
       return unless channel_name
 
-      @channels_mutex.synchronize do
+      @monitor.synchronize do
         channel = @channels[channel_name]
         channel&.set_topic(topic_text)
       end
@@ -455,7 +490,7 @@ module Yaic
       time_str = message.params[3]
       return unless channel_name && setter && time_str
 
-      @channels_mutex.synchronize do
+      @monitor.synchronize do
         channel = @channels[channel_name]
         channel&.set_topic(channel&.topic, setter, Time.at(time_str.to_i))
       end
@@ -466,11 +501,13 @@ module Yaic
       users_str = message.params[3]
       return unless channel_name && users_str
 
-      @pending_names[channel_name] ||= {}
+      @monitor.synchronize do
+        @pending_names[channel_name] ||= {}
 
-      users_str.split.each do |user_entry|
-        nick, modes = parse_user_with_prefix(user_entry)
-        @pending_names[channel_name][nick] = modes
+        users_str.split.each do |user_entry|
+          nick, modes = parse_user_with_prefix(user_entry)
+          @pending_names[channel_name][nick] = modes
+        end
       end
     end
 
@@ -479,7 +516,7 @@ module Yaic
       return unless channel_name
 
       pending = nil
-      @channels_mutex.synchronize do
+      @monitor.synchronize do
         channel = @channels[channel_name]
         pending = @pending_names.delete(channel_name) || {}
 
@@ -500,7 +537,7 @@ module Yaic
       modes_str = message.params[1]
       return unless modes_str
 
-      @channels_mutex.synchronize do
+      @monitor.synchronize do
         channel = @channels[target]
         return unless channel
 
@@ -569,18 +606,20 @@ module Yaic
       away = flags&.include?("G") || false
       realname = hopcount_realname&.sub(/^\d+\s*/, "") || ""
 
-      @pending_who_results.each_key do |mask|
-        if who_reply_matches_mask?(mask, channel, nick)
-          result = WhoResult.new(
-            channel: channel,
-            user: user,
-            host: host,
-            server: server,
-            nick: nick,
-            away: away,
-            realname: realname
-          )
-          @pending_who_results[mask] << result
+      @monitor.synchronize do
+        @pending_who_results.each_key do |mask|
+          if who_reply_matches_mask?(mask, channel, nick)
+            result = WhoResult.new(
+              channel: channel,
+              user: user,
+              host: host,
+              server: server,
+              nick: nick,
+              away: away,
+              realname: realname
+            )
+            @pending_who_results[mask] << result
+          end
         end
       end
 
@@ -590,7 +629,9 @@ module Yaic
 
     def handle_rpl_endofwho(message)
       mask = message.params[1]
-      @pending_who_complete[mask] = true if @pending_who_complete.key?(mask)
+      @monitor.synchronize do
+        @pending_who_complete[mask] = true if @pending_who_complete.key?(mask)
+      end
     end
 
     def who_reply_matches_mask?(mask, channel, nick)
@@ -607,61 +648,77 @@ module Yaic
       host = message.params[3]
       realname = message.params[5]
 
-      @pending_whois[nick] = WhoisResult.new(nick: nick)
-      @pending_whois[nick].user = user
-      @pending_whois[nick].host = host
-      @pending_whois[nick].realname = realname
+      @monitor.synchronize do
+        @pending_whois[nick] = WhoisResult.new(nick: nick)
+        @pending_whois[nick].user = user
+        @pending_whois[nick].host = host
+        @pending_whois[nick].realname = realname
+      end
     end
 
     def handle_rpl_whoischannels(message)
       nick = message.params[1]
       channels_str = message.params[2]
-      return unless @pending_whois[nick] && channels_str
 
-      channels_str.split.each do |chan|
-        channel = chan.gsub(/^[@+%~&]+/, "")
-        @pending_whois[nick].channels << channel
+      @monitor.synchronize do
+        return unless @pending_whois[nick] && channels_str
+
+        channels_str.split.each do |chan|
+          channel = chan.gsub(/^[@+%~&]+/, "")
+          @pending_whois[nick].channels << channel
+        end
       end
     end
 
     def handle_rpl_whoisserver(message)
       nick = message.params[1]
       server = message.params[2]
-      return unless @pending_whois[nick]
 
-      @pending_whois[nick].server = server
+      @monitor.synchronize do
+        return unless @pending_whois[nick]
+        @pending_whois[nick].server = server
+      end
     end
 
     def handle_rpl_whoisidle(message)
       nick = message.params[1]
       idle = message.params[2]&.to_i
       signon = message.params[3]&.to_i
-      return unless @pending_whois[nick]
 
-      @pending_whois[nick].idle = idle
-      @pending_whois[nick].signon = signon ? Time.at(signon) : nil
+      @monitor.synchronize do
+        return unless @pending_whois[nick]
+        @pending_whois[nick].idle = idle
+        @pending_whois[nick].signon = signon ? Time.at(signon) : nil
+      end
     end
 
     def handle_rpl_whoisaccount(message)
       nick = message.params[1]
       account = message.params[2]
-      return unless @pending_whois[nick]
 
-      @pending_whois[nick].account = account
+      @monitor.synchronize do
+        return unless @pending_whois[nick]
+        @pending_whois[nick].account = account
+      end
     end
 
     def handle_rpl_away(message)
       nick = message.params[1]
       away_msg = message.params[2]
-      return unless @pending_whois[nick]
 
-      @pending_whois[nick].away = away_msg
+      @monitor.synchronize do
+        return unless @pending_whois[nick]
+        @pending_whois[nick].away = away_msg
+      end
     end
 
     def handle_rpl_endofwhois(message)
       nick = message.params[1]
-      @pending_whois_complete[nick] = true if @pending_whois_complete.key?(nick)
-      result = @pending_whois[nick]
+      result = nil
+      @monitor.synchronize do
+        @pending_whois_complete[nick] = true if @pending_whois_complete.key?(nick)
+        result = @pending_whois[nick]
+      end
       emit(:whois, message, result: result)
     end
 
@@ -707,7 +764,7 @@ module Yaic
     end
 
     def emit(event_type, message, **attributes)
-      handlers = @handlers_mutex.synchronize { @handlers[event_type]&.dup }
+      handlers = @monitor.synchronize { @handlers[event_type]&.dup }
       return unless handlers
 
       event = Event.new(type: event_type, message: message, **attributes)

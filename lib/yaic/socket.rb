@@ -5,7 +5,9 @@ require "openssl"
 
 module Yaic
   class Socket
-    attr_reader :state
+    def state
+      @monitor.synchronize { @state }
+    end
 
     def initialize(host, port, ssl: false, verify_mode: nil, connect_timeout: 30)
       @host = host
@@ -18,57 +20,66 @@ module Yaic
       @read_buffer = String.new(encoding: Encoding::ASCII_8BIT)
       @write_queue = []
       @state = :disconnected
+      @monitor = Monitor.new
     end
 
     def connect
       tcp_socket = TCPSocket.new(@host, @port, connect_timeout: @connect_timeout)
       tcp_socket.setsockopt(::Socket::SOL_SOCKET, ::Socket::SO_KEEPALIVE, true)
 
-      @socket = @ssl ? wrap_ssl(tcp_socket) : tcp_socket
-      @state = :connecting
+      @monitor.synchronize do
+        @socket = @ssl ? wrap_ssl(tcp_socket) : tcp_socket
+        @state = :connecting
+      end
     rescue Errno::ETIMEDOUT, Errno::EHOSTUNREACH, Errno::ECONNREFUSED, IO::TimeoutError, SocketError => e
       raise Yaic::ConnectionError, e.message
     end
 
     def disconnect
-      return if @state == :disconnected
+      @monitor.synchronize do
+        return if @state == :disconnected
 
-      begin
-        @socket&.close
-      rescue
-        nil
+        begin
+          @socket&.close
+        rescue
+          nil
+        end
+        @socket = nil
+        @read_buffer.clear
+        @write_queue.clear
+        @state = :disconnected
       end
-      @socket = nil
-      @read_buffer.clear
-      @write_queue.clear
-      @state = :disconnected
     end
 
     def read
-      return nil if @socket.nil?
+      @monitor.synchronize do
+        return nil if @socket.nil?
 
-      begin
-        data = @socket.read_nonblock(4096)
-        buffer_data(data)
-        extract_message
-      rescue IO::WaitReadable
-        extract_message
-      rescue IOError, Errno::ECONNRESET
-        nil
+        begin
+          data = @socket.read_nonblock(4096)
+          buffer_data(data)
+          extract_message
+        rescue IO::WaitReadable
+          extract_message
+        rescue IOError, Errno::ECONNRESET
+          nil
+        end
       end
     end
 
     def write(message)
-      return if @socket.nil?
+      @monitor.synchronize do
+        return if @socket.nil?
 
-      message = message.dup
-      message << "\r\n" unless message.end_with?("\r\n", "\n")
+        message = message.dup
+        message << "\r\n" unless message.end_with?("\r\n", "\n")
 
-      begin
-        @socket.write_nonblock(message)
-      rescue IO::WaitWritable
-        @write_queue << message
-        flush_write_queue
+        begin
+          @socket.write_nonblock(message)
+        rescue IO::WaitWritable
+          @write_queue << message
+          flush_write_queue
+        end
       end
     end
 
