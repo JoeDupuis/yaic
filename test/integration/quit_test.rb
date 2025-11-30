@@ -44,6 +44,7 @@ class QuitIntegrationTest < Minitest::Test
     refute_nil quit_event
     assert_equal :quit, quit_event.type
     assert_equal @test_nick2, quit_event.user.nick
+    assert_match(/Leaving now/, quit_event.reason)
   ensure
     client1&.quit
   end

@@ -186,13 +186,14 @@ class JoinPartIntegrationTest < Minitest::Test
     other_part_event = nil
     client1.on(:part) { |e| other_part_event = e if e.user.nick == @test_nick2 }
 
-    client2.part(@test_channel)
+    client2.part(@test_channel, "Going away now")
     wait_until { other_part_event }
 
     refute_nil other_part_event
     assert_equal :part, other_part_event.type
     assert_equal @test_channel, other_part_event.channel
     assert_equal @test_nick2, other_part_event.user.nick
+    assert_match(/Going away now/, other_part_event.reason)
   ensure
     client1&.quit
     client2&.quit
