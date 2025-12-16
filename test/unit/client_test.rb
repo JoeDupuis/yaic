@@ -1388,7 +1388,7 @@ class ClientTest < Minitest::Test
     assert mock_socket.written.any? { |m| m.include?("PRIVMSG #test :Hello") }
   end
 
-  def test_error_numeric_triggers_error_event_with_numeric_and_message
+  def test_error_numeric_triggers_error_event_with_numeric_message_and_params
     mock_socket = MockSocket.new
     client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
     client.instance_variable_set(:@socket, mock_socket)
@@ -1402,6 +1402,7 @@ class ClientTest < Minitest::Test
     assert_equal :error, received_event.type
     assert_equal 433, received_event.numeric
     assert_equal "Nickname in use", received_event.message
+    assert_equal ["*", "testnick", "Nickname in use"], received_event.params
   end
 
   def test_connect_blocks_until_registered

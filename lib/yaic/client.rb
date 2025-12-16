@@ -853,7 +853,7 @@ module Yaic
       when :mode
         {target: message.params[0], modes: message.params[1], args: message.params[2..]}
       when :error
-        {numeric: message.command.to_i, message: message.params.last}
+        {numeric: message.command.to_i, message: message.params.last, params: message.params}
       else
         {}
       end
