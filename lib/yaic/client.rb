@@ -67,6 +67,8 @@ module Yaic
       @pending_whois_complete = {}
       @pending_who_results = {}
       @pending_who_complete = {}
+      @pending_ison = nil
+      @pending_ison_complete = false
       @read_thread = nil
       @monitor = Monitor.new
     end
@@ -146,6 +148,8 @@ module Yaic
         handle_rpl_away(message)
       when "318"
         handle_rpl_endofwhois(message)
+      when "303"
+        handle_rpl_ison(message)
       end
 
       emit_events(message)
@@ -290,6 +294,30 @@ module Yaic
 
     def raw(command)
       socket.write(command)
+    end
+
+    def ison(*nicks, timeout: DEFAULT_OPERATION_TIMEOUT)
+      nicks = nicks.flatten
+      return [] if nicks.empty?
+
+      log "Sending ISON #{nicks.join(" ")}..."
+      @monitor.synchronize do
+        @pending_ison = nil
+        @pending_ison_complete = false
+      end
+
+      message = Message.new(command: "ISON", params: [nicks.join(" ")])
+      socket.write(message.to_s)
+
+      wait_until(timeout: timeout) { @monitor.synchronize { @pending_ison_complete } }
+
+      @monitor.synchronize do
+        result = @pending_ison || []
+        log "ISON complete (#{result.size} online)"
+        result
+      end
+    ensure
+      @monitor.synchronize { @pending_ison_complete = false }
     end
 
     private
@@ -721,6 +749,18 @@ module Yaic
         result = @pending_whois[nick]
       end
       emit(:whois, message, result: result)
+    end
+
+    def handle_rpl_ison(message)
+      nicks_str = message.params[1] || ""
+      online_nicks = nicks_str.split
+
+      @monitor.synchronize do
+        @pending_ison = online_nicks
+        @pending_ison_complete = true
+      end
+
+      emit(:ison, message, nicks: online_nicks)
     end
 
     def apply_user_mode(channel, nick, mode_char, adding)

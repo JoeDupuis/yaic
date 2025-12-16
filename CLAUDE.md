@@ -57,7 +57,7 @@ client.on(:message) { |event| handle_message(event) }
 client.on(:join) { |event| handle_join(event) }
 ```
 
-Events: `:raw`, `:connect`, `:disconnect`, `:message`, `:notice`, `:join`, `:part`, `:quit`, `:kick`, `:nick`, `:topic`, `:mode`, `:names`, `:who`, `:whois`, `:error`
+Events: `:raw`, `:connect`, `:disconnect`, `:message`, `:notice`, `:join`, `:part`, `:quit`, `:kick`, `:nick`, `:topic`, `:mode`, `:names`, `:who`, `:whois`, `:ison`, `:error`
 
 ### Test Structure
 
