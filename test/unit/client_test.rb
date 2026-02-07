@@ -1764,6 +1764,70 @@ class ClientTest < Minitest::Test
     client&.quit
   end
 
+  def test_privmsg_returns_parts_array
+    mock_socket = MockSocket.new
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    client.instance_variable_set(:@socket, mock_socket)
+    client.instance_variable_set(:@state, :connected)
+
+    result = client.privmsg("#test", "Hello")
+    assert_equal ["Hello"], result
+  end
+
+  def test_privmsg_splits_long_message
+    mock_socket = MockSocket.new
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    client.instance_variable_set(:@socket, mock_socket)
+    client.instance_variable_set(:@state, :connected)
+
+    long_text = "a" * 600
+    result = client.privmsg("#test", long_text)
+
+    assert result.size > 1, "Expected message to be split into multiple parts"
+    assert_equal long_text, result.join
+    privmsg_writes = mock_socket.written.select { |m| m.start_with?("PRIVMSG") }
+    assert_equal result.size, privmsg_writes.size
+  end
+
+  def test_privmsg_respects_isupport_linelen
+    mock_socket = MockSocket.new
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    client.instance_variable_set(:@socket, mock_socket)
+    client.instance_variable_set(:@state, :connected)
+    client.instance_variable_set(:@isupport, {"LINELEN" => "1024"})
+
+    long_text = "a" * 600
+    result = client.privmsg("#test", long_text)
+
+    assert_equal 1, result.size, "With LINELEN=1024, a 600-char message should not be split"
+    assert_equal [long_text], result
+  end
+
+  def test_notice_returns_parts_array
+    mock_socket = MockSocket.new
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    client.instance_variable_set(:@socket, mock_socket)
+    client.instance_variable_set(:@state, :connected)
+
+    result = client.notice("nick", "Hello")
+    assert_equal ["Hello"], result
+  end
+
+  def test_notice_splits_long_message
+    mock_socket = MockSocket.new
+    client = Yaic::Client.new(host: "localhost", port: 6667, nick: "testnick")
+    client.instance_variable_set(:@socket, mock_socket)
+    client.instance_variable_set(:@state, :connected)
+
+    long_text = "a" * 600
+    result = client.notice("nick", long_text)
+
+    assert result.size > 1, "Expected notice to be split into multiple parts"
+    assert_equal long_text, result.join
+    notice_writes = mock_socket.written.select { |m| m.start_with?("NOTICE") }
+    assert_equal result.size, notice_writes.size
+  end
+
   def capture_stderr
     original_stderr = $stderr
     $stderr = StringIO.new

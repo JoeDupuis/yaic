@@ -5,6 +5,7 @@ module Yaic
     STALE_TIMEOUT = 180
     DEFAULT_CONNECT_TIMEOUT = 30
     DEFAULT_OPERATION_TIMEOUT = 10
+    MAX_HOST_LENGTH = 63
 
     EVENT_MAP = {
       "PRIVMSG" => :message,
@@ -178,15 +179,25 @@ module Yaic
     end
 
     def privmsg(target, text)
-      message = Message.new(command: "PRIVMSG", params: [target, text])
-      socket.write(message.to_s)
+      max = MessageSplitter.max_text_bytes(line_length: line_length, command: "PRIVMSG", target: target, prefix_length: source_prefix_length)
+      parts = MessageSplitter.split(text, max_bytes: max)
+      parts.each do |part|
+        message = Message.new(command: "PRIVMSG", params: [target, part])
+        socket.write(message.to_s)
+      end
+      parts
     end
 
     alias_method :msg, :privmsg
 
     def notice(target, text)
-      message = Message.new(command: "NOTICE", params: [target, text])
-      socket.write(message.to_s)
+      max = MessageSplitter.max_text_bytes(line_length: line_length, command: "NOTICE", target: target, prefix_length: source_prefix_length)
+      parts = MessageSplitter.split(text, max_bytes: max)
+      parts.each do |part|
+        message = Message.new(command: "NOTICE", params: [target, part])
+        socket.write(message.to_s)
+      end
+      parts
     end
 
     def join(channel, key = nil, timeout: DEFAULT_OPERATION_TIMEOUT)
@@ -324,6 +335,19 @@ module Yaic
 
     def socket
       @monitor.synchronize { @socket }
+    end
+
+    def line_length
+      @monitor.synchronize do
+        value = @isupport["LINELEN"]
+        value ? value.to_i : 512
+      end
+    end
+
+    def source_prefix_length
+      @monitor.synchronize do
+        @nick.bytesize + @user.bytesize + MAX_HOST_LENGTH + 4
+      end
     end
 
     def log(message)

@@ -11,6 +11,7 @@ require_relative "yaic/event"
 require_relative "yaic/channel"
 require_relative "yaic/who_result"
 require_relative "yaic/whois_result"
+require_relative "yaic/message_splitter"
 require_relative "yaic/client"
 
 module Yaic
