@@ -100,4 +100,65 @@ class MessageSplitterTest < Minitest::Test
     parts = Yaic::MessageSplitter.split("\u{1F600}", max_bytes: 1)
     assert_equal [], parts
   end
+
+  def test_split_prefers_word_boundary
+    parts = Yaic::MessageSplitter.split("hello world foo bar", max_bytes: 11)
+    assert_equal ["hello world", "foo bar"], parts
+  end
+
+  def test_split_word_boundary_consumes_space
+    parts = Yaic::MessageSplitter.split("aaa bbb", max_bytes: 4)
+    assert_equal ["aaa", "bbb"], parts
+  end
+
+  def test_split_falls_back_to_byte_cut_when_no_space
+    url = "https://example.com/very/long/path"
+    parts = Yaic::MessageSplitter.split(url, max_bytes: 20)
+    parts.each do |part|
+      assert part.bytesize <= 20
+    end
+    assert_equal url, parts.join
+  end
+
+  def test_split_long_url_without_spaces
+    url = "a" * 50
+    parts = Yaic::MessageSplitter.split(url, max_bytes: 20)
+    assert_equal 3, parts.size
+    assert_equal ["a" * 20, "a" * 20, "a" * 10], parts
+  end
+
+  def test_split_mixed_words_then_long_token
+    text = "hi " + "x" * 20
+    parts = Yaic::MessageSplitter.split(text, max_bytes: 10)
+    assert_equal ["hi", "x" * 10, "x" * 10], parts
+  end
+
+  def test_split_multiple_consecutive_spaces
+    parts = Yaic::MessageSplitter.split("aaa  bbb", max_bytes: 5)
+    assert_equal ["aaa ", "bbb"], parts
+  end
+
+  def test_split_word_boundary_with_utf8
+    text = "\u{1F600} hello world"
+    parts = Yaic::MessageSplitter.split(text, max_bytes: 10)
+    parts.each do |part|
+      assert part.valid_encoding?, "Part should have valid encoding"
+      assert part.bytesize <= 10
+    end
+    assert_equal text, parts.join(" ")
+  end
+
+  def test_split_space_at_exact_boundary
+    parts = Yaic::MessageSplitter.split("abcde fghij", max_bytes: 5)
+    assert_equal ["abcde", "fghij"], parts
+  end
+
+  def test_split_all_content_reassembles
+    text = "the quick brown fox jumps over the lazy dog"
+    parts = Yaic::MessageSplitter.split(text, max_bytes: 10)
+    assert_equal text, parts.join(" ")
+    parts.each do |part|
+      assert part.bytesize <= 10
+    end
+  end
 end

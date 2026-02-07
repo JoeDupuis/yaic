@@ -17,10 +17,24 @@ module Yaic
       chunks = []
       remaining = text.dup
       while remaining.bytesize > 0
-        chunk = safe_truncate(remaining, max_bytes)
-        break if chunk.empty?
-        chunks << chunk
-        remaining = remaining[chunk.length..]
+        if remaining.bytesize <= max_bytes
+          chunks << remaining
+          break
+        end
+
+        truncated = safe_truncate(remaining, max_bytes)
+        break if truncated.empty?
+
+        if remaining[truncated.length] == " "
+          chunks << truncated
+          remaining = remaining[(truncated.length + 1)..]
+        elsif (space_idx = truncated.rindex(" "))
+          chunks << truncated[0...space_idx]
+          remaining = remaining[(space_idx + 1)..]
+        else
+          chunks << truncated
+          remaining = remaining[truncated.length..]
+        end
       end
       chunks
     end
