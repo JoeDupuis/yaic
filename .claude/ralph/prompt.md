@@ -131,8 +131,6 @@ When feature is done, tests pass, and **QA has approved**:
 .claude/ralph/bin/kill-claude
 ```
 
-**IMPORTANT**: The kill script must be run with the sandbox disabled (`dangerouslyDisableSandbox: true`) because it needs to send signals to processes.
-
 The loop will restart you with fresh context.
 
 **CRITICAL: NEVER call the exit script if you are blocked or have a question. Use `AskUserQuestion` instead and wait for the human to respond.**
